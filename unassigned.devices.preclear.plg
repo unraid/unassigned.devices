@@ -1,7 +1,7 @@
 <?xml version='1.0' standalone='yes'?>
 <!DOCTYPE PLUGIN [
 <!ENTITY name		"unassigned.devices.preclear">
-<!ENTITY author		"dlandon">
+<!ENTITY author		"Limetech">
 <!ENTITY version	"2025.05.22">
 <!ENTITY launch		"Tools/Preclear">
 <!ENTITY gitURL		"https://raw.githubusercontent.com/unraid/unassigned.devices/master">

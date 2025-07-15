@@ -1,7 +1,7 @@
 <?xml version='1.0' standalone='yes'?>
 <!DOCTYPE PLUGIN [
 <!ENTITY name		"unassigned.devices">
-<!ENTITY author		"dlandon">
+<!ENTITY author		"Limetech">
 <!ENTITY version	"2025.06.15">
 <!ENTITY launch		"Main/UnassignedDevices">
 <!ENTITY gitURL		"https://raw.githubusercontent.com/unraid/&name;/master">
