@@ -6,6 +6,7 @@ Tag="icon-preclear"
 <?
 /* Copyright 2015-2020, Guilherme Jardim
  * Copyright 2022-2025, Dan Landon
+ * Copyright 2025, Lime Technology
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License version 2,
@@ -36,6 +37,14 @@ if (version_compare($version['version'], '6.12.0-beta5', '>')) {
 <? endif; ?>
 <link rel="stylesheet" href="<?autov("/plugins/".UNASSIGNED_PRECLEAR_PLUGIN."/assets/style-$theme.css")?>">
 <link rel="stylesheet" href="<?autov("/plugins/".UNASSIGNED_PRECLEAR_PLUGIN."/assets/preclear.css")?>">
+
+<style>
+	.udbutton {
+		float:right;
+		margin-right:1rem;
+		margin-bottom:1rem;
+	}
+</style>
 
 <?=$Preclear->html();?>
 <table class='preclear'>
@@ -188,7 +197,12 @@ if (version_compare($version['version'], '6.12.0-beta5', '>')) {
 
 			if (Target.prop('nodeName') === "DIV") {
 				element.addClass("vhshift");
-				Append ? Target.append(element) : Target.prepend(element);
+				<? if (version_compare($version['version'],"7.1.999",">") ) : ?>
+					Target.after(element);
+					element.addClass("udbutton");
+				<? else:?>
+					Append ? Target.append(element) : Target.prepend(element);
+				<? endif; ?>
 			} else if (Target.prop('nodeName') === "INPUT") {
 				element.css("display", "none");
 				Append ? $('.tabs').append(element) : $('.tabs').prepend(element);
