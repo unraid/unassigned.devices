@@ -1,6 +1,7 @@
 <?php
 /* Copyright 2015-2020, Guilherme Jardim
  * Copyright 2022-2025, Dan Landon
+ * Copyright 2025, Lime Technology
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License version 2,
@@ -372,6 +373,9 @@ class Preclear
 <style>
 	.dl-dialog{margin-bottom: 8px; line-height: 16px; text-align: left;}
 	.sweet-alert input[type="checkbox"] {display: initial; width: auto; height: auto; margin: auto 3px auto auto; vertical-align: top;}
+	dd {flex-direction: unset;}
+	select {width: auto;}
+	select#multiple_preclear {width: 100%;}
 </style>
 <div id="preclear-dialog" style="display:none;" title=""></div>
 <div id="dialog-header-defaults" style="display:none;">
@@ -403,17 +407,23 @@ class Preclear
 				<option value='-z'><?=_('Clear Signature')?></option>
 			</select>
 		</dd>
+	</dl>
+	<div class="dl-dialog">
 		<div class='write_options'>
+			<dl>
 			<dt><?=_('Cycles')?>: </dt>
 			<dd>
-				<select name="-c"><?=$cycles;?></select>
+				<select name="-c" class="narrow"><?=$cycles;?></select>
 			</dd>
+			</dl>
 		</div>
+	</div>
 		<?if ( array_key_exists("notifications", $capabilities) && $capabilities["notifications"] ):?>
 		<div class="notify_options">
+			<dl>
 			<dt><?=_('Notifications')?>: </dt>
 			<dd style="font-weight: normal;">
-				<input type="checkbox" name="preclear_notify" onchange="toggleFrequency(this, '-M');">Per Unraid Settings
+				<input type="checkbox" name="preclear_notify" class="narrow" onchange="toggleFrequency(this, '-M');">Per Unraid Settings
 			</dd>
 			<dt>&nbsp;</dt>
 			<dd>
@@ -425,44 +435,52 @@ class Preclear
 					<option value="4">On every 25% of progress</option>
 				</select>
 				</dd>
+				</dl>
 		</div>
 		<?endif;?>
 		<div class='read_options'>
+			<dl>
 			<dt><?=_('Read size')?>: </dt>
 			<dd>
-				<select name="-r">
+				<select name="-r" class="narrow">
 					<option value="0">Default</option><?=$size;?>
 				</select>
 			</dd>
+			</dl>
 		</div>
 		<div class='write_options'>
+			<dl>
 			<dt><?=_('Write size')?>: </dt>
 			<dd>
-				<select name="-w">
+				<select name="-w" class="narrow">
 					<option value="0">Default</option><?=$size;?>
 				</select>
 			</dd>
 			<dt><?=_('Skip Pre-read')?>: </dt>
 			<dd>
-				<input type="checkbox" name="-W" class="switch" >
+				<input type="checkbox" name="-W" class="switch narrow" >
 			</dd>
+			</dl>
 		</div>
 		<?if ( array_key_exists("fast_postread", $capabilities) && $capabilities["fast_postread"] ):?>
 		<div class='postread_options'>
+			<dl>
 			<dt><?=_('Fast Post-read')?>: </dt>
 			<dd>
-				<input type="checkbox" name="-f" class="switch" >
+				<input type="checkbox" name="-f" class="switch narrow" >
 			</dd>
+			</dl>
 		</div>
 		<?endif;?>
 		<div class='inline_help'>
+			<dl>	
 			<p><?=_('Enable Testing for debugging')?></p>
 			<dt><?=_('Testing')?>:</dt>
 			<dd>
-				<input type="checkbox" name="-s" class="switch" >
+				<input type="checkbox" name="-s" class="switch narrow" >
 			</dd>
+			</dl>
 		</div>
-	</dl>
 </div>
 
 <div id="docker-start-defaults" style="display:none;">
@@ -476,14 +494,18 @@ class Preclear
 				<option value='-z'><?=_('Clear Signature')?></option>
 			</select>
 		</dd>
+		</dl>
 		<div class='write_options'>
+			<dl>
 			<dt><?=_('Cycles')?>: </dt>
 			<dd>
-				<select name="-c"><?=$cycles;?></select>
+				<select name="-c" class="narrow"><?=$cycles;?></select>
 			</dd>
+			</dl>
 		</div>
 		<?if ( array_key_exists("notifications", $capabilities) && $capabilities["notifications"] ):?>
 		<div class="notify_options">
+			<dl>
 			<dt><?=_('Notifications')?>: </dt>
 			<dd>
 				<select name="-M">
@@ -494,42 +516,51 @@ class Preclear
 					<option value="4"><?=_('On every 25% of progress')?></option>
 				</select>
 				</dd>
+			</dl>
 		</div>
 		<?endif;?>
 		<div class='read_options'>
+			<dl>
 			<dt><?=_('Read size')?>: </dt>
 			<dd>
-				<select name="-r">
+				<select name="-r" class="narrow">
 					<option value="0"><?=_('Default')?></option><?=$size;?>
 				</select>
 			</dd>
+			</dl>
 		</div>
-		<div class='write_options'>
+		<div class='write_options'>	
+			<dl>
 			<dt><?=_('Write size')?>: </dt>
 			<dd>
-				<select name="-w">
+				<select name="-w" class="narrow">
 					<option value="0"><?=_('Default')?></option><?=$size;?>
 				</select>
 			</dd>
 			<dt><?=_('Skip Pre-read')?>: </dt>
 			<dd>
-				<input type="checkbox" name="-W" class="switch" >
+				<input type="checkbox" name="-W" class="switch narrow" >
 			</dd>
+			</dl>
 		</div>
 		<?if ( array_key_exists("fast_postread", $capabilities) && $capabilities["fast_postread"] ):?>
-		<div class='postread_options'>
+		<div class='postread_options'>	
+			<dl>
 			<dt><?=_('Fast Post-read')?>: </dt>
 			<dd>
-				<input type="checkbox" name="-f" class="switch" >
+				<input type="checkbox" name="-f" class="switch narrow" >
 			</dd>
+			</dl>
 		</div>
 		<?endif;?>
 		<div class='inline_help'>
+			<dl>
 			<p><?=_('Enable Testing for debugging')?></p>
 			<dt><?=_('Testing')?>:</dt>
 			<dd>
-				<input type="checkbox" name="-s" class="switch" >
+				<input type="checkbox" name="-s" class="switch narrow" >
 			</dd>
+			</dl>
 		</div>
 	</dl>
 </div>
@@ -546,16 +577,20 @@ class Preclear
 				<option value="--erase-clear"><?=_('Erase and Clear Disk')?></option>
 			</select>
 		</dd>
-		<div class="write_options cycles_options">
-			<dt><?=_('Cycles')?>: </dt>
-			<dd>
-				<select name="--cycles"><?=$cycles2;?></select>
+	</dl>
+	<div class="write_options cycles_options">
+		<dl>
+				<dt><?=_('Cycles')?>: </dt>
+				<dd>
+					<select name="--cycles" class="narrow"><?=$cycles2;?></select>
 			</dd>
-		</div>
-		<div class="notify_options">
-			<dt><?=_('Notifications')?>:</dt>
+		</dl>
+	</div>
+	<div class="notify_options">
+		<dl>
+				<dt><?=_('Notifications')?>:</dt>
 			<dd style="font-weight: normal;">
-				<input type="checkbox" name="preclear_notify" onchange="toggleFrequency(this, '--frequency');">Per Unraid Settings
+				<input type="checkbox" name="preclear_notify" class="narrow" onchange="toggleFrequency(this, '--frequency');">Per Unraid Settings
 			</dd>
 			<dt>&nbsp;</dt>
 			<dd>
@@ -565,32 +600,34 @@ class Preclear
 					<option value="3"><?=_('On every cycle and step end')?></option>
 					<option value="4"><?=_('On every 25% of progress')?></option>
 				</select>
-			</dd>
-		</div>
-		<div class="write_options">
-			<dt><?=_('Skip Pre-Read')?>: </dt>
+				</dd>
+		</dl>
+	</div>
+	<div class="write_options">
+		<dl>
+				<dt><?=_('Skip Pre-Read')?>: </dt>
 			<dd>
-				<input type="checkbox" name="--skip-preread" class="switch" >
+				<input type="checkbox" name="--skip-preread" class="switch narrow" >
 			</dd>
 			<dt><?=_('Skip Post-Read')?>: </dt>
 			<dd>
-				<input type="checkbox" name="--skip-postread" class="switch" >
+				<input type="checkbox" name="--skip-postread" class="switch narrow" >
 			</dd>
-		</div>
-		<div class='inline_help'>
-			<p><?=_('Enable Testing for debugging')?></p>
+		</dl>
+	</div>
+	<div class='inline_help'>
+				<p><?=_('Enable Testing for debugging')?></p>
+		<dl>
 			<dt><?=_('Testing')?>:</dt>
 			<dd>
-				<input type="checkbox" name="--test" class="switch" >
-			</dd>
-		</div>
-	</dl>
+				<input type="checkbox" name="--test" class="switch narrow" >
+			</dd>	
+		</dl>
+	</div>
 </div>
 
 <div id="preclear-set-queue-defaults" style="display:none;">
-	<dl>
-		<?=_('If you set a queue limit, all running preclear sessions above that limit will be paused and remain in the queue until a session finishes')?>.<br><br>
-	</dl>
+	<?=_('If you set a queue limit, all running preclear sessions above that limit will be paused and remain in the queue until a session finishes')?>.<br><br>
 	<dl class="dl-dialog">
 		<dt><?=_('Concurrent Sessions')?>: </dt>
 		<dd>
