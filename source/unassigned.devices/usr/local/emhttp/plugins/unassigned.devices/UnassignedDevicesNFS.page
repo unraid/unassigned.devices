@@ -1,0 +1,80 @@
+Menu="UnassignedDevicesSettings:3"
+Title="NFS Settings"
+---
+<?php
+/* Copyright 2015, Guilherme Jardim
+ * Copyright 2016-2025, Dan Landon
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License version 2,
+ * as published by the Free Software Foundation.
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ */
+
+/* Load the UD library file if it is not already loaded. */
+require_once("plugins/unassigned.devices/include/lib.php");
+
+/* Get the unassigned_devices config file. */
+$UD_cfg				= $ud_config;
+$text				= str_replace(" ", "\n", $UD_cfg['Config']['nfs_rule']);
+?>
+
+<table class="tablesorter shift ups">
+<thead><tr><th>_(NFS Settings)_</th></tr></thead>
+</table>
+
+<form markdown="1" name="nfs_settings" method="POST" action="/update.php" target="progressFrame">
+<input type="hidden" name="#section" value="Config">
+<input type="hidden" name="#file" value="<?=UD_CONFIG_FILE;?>">
+<input type="hidden" name="#command" value="<?=UD_SETTINGS_SCRIPT;?>">
+<input type="hidden" name="#arg[1]" value="nfs_settings">
+
+_(Enable NFS export)_?
+: <select name="NFS_Export" size="1" <?if ($var['shareNFSEnabled']=="no"):?>disabled<?endif;?>>
+  <?=mk_option($UD_cfg['Config']['NFS_Export'], "no", "_(No)_");?>
+  <?=mk_option($UD_cfg['Config']['NFS_Export'], "yes", "_(Yes)_");?>
+  </select><?if ($var['shareNFSEnabled']=="no"):?>&nbsp;_(NFS must be enabled in Settings->NFS to enable NFS Export)_.<?endif;?>
+
+:ud_settings_nfs_security_plug:
+> Set to **Yes** to export Unassigned Devices with NFS sharing. Shares are exported Public with read and write access or Private with the rule you set. Access is controlled with permission settings on files and folders.
+:end
+
+<div id="NFS_Security" style="display: <?=($UD_cfg['Config']['NFS_Export'] == "no" ? "none" : "block");?>">
+<dl>
+	<dt>_(NFS Security)_:</dt>
+	<dd>
+		<select name="NFS_Security" size="1" <?if ($var['shareNFSEnabled']=="no"):?>disabled<?endif;?>>
+		<?=mk_option($UD_cfg['Config']['NFS_Security'], "public", "_(Public)_");?>
+		<?=mk_option($UD_cfg['Config']['NFS_Security'], "private", "_(Private)_");?>
+		</select>
+	</dd>
+</dl>
+
+<div id="new_nfs_rule" style="display: <?=($UD_cfg['Config']['NFS_Security'] == "public" ? "none" : "block");?>">
+	<dl>
+		<dt>_(Rules)_:</dt>
+		<dd>
+			<textarea spellcheck="false" cols="40" rows="5" name="new_nfs_rule" title='_(Enter NFS Rules)_.' style="width:45%;" placeholder="*(rw,sec=sys,insecure,anongid=100,anonuid=99,no_root_squash)"><?=htmlspecialchars($text);?></textarea>
+		</dd>
+	</dl>
+</div>
+</div>
+
+:ud_settings_nfs_rules_plug:
+> Put the rule for each IP address on a separate line and terminate the Rule with a new line.
+> You cannot enter a Rule in the format IP1,IP2(...).  Unraid does not format the exports file in that format.
+
+> The default rules for every NFS Rule are - async and no_subtree_check.
+
+> **Note:**
+>
+> The Public default Rule used is '*(rw,sec=sys,insecure,anongid=100,anonuid=99,all_squash)'.
+>
+> The Private default Rule used is '*(rw,sec=sys,insecure,anongid=100,anonuid=99,no_root_squash)'.
+:end
+
+&nbsp;
+: <span><input type="submit" value='_(Apply)_'><input type="button" value="_(Done)_" onclick="done()"></span>
+</form>

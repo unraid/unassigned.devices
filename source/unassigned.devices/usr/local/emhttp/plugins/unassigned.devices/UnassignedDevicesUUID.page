@@ -1,0 +1,72 @@
+Menu="UnassignedDevicesSettings:5"
+Title="Change UUID"
+Tag="hdd-o"
+---
+<?php
+/* Copyright 2015, Guilherme Jardim
+ * Copyright 2016-2025, Dan Landon
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License version 2,
+ * as published by the Free Software Foundation.
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ */
+
+/* Load the UD library file if it is not already loaded. */
+require_once("plugins/unassigned.devices/include/lib.php");
+
+/* Get the unassigned_devices config file. */
+$UD_cfg				= $ud_config;
+
+/* Temporary config value. */
+$UD_cfg['Config']['change_uuid']		= $UD_cfg['Config']['change_uuid'] ?? "";
+
+/* Get array of devices that can have UUID changed - unmounted, xfs devices. */
+$uuid_devices = [];
+
+foreach (get_all_disks_info() as $d) {
+	/* If the disk dropped out of the array, skip it. */
+	if (isset($d['array_disk']) && ($d['array_disk'])) {
+		continue;
+	}
+
+	if (isset($d['partitions'][0]['fstype'])) {
+		/* Get an array of devices that are candidates for uuid change. */
+		if (($d['partitions'][0]['fstype'] == "xfs" || $d['partitions'][0]['fstype'] == "btrfs" || $d['partitions'][0]['fstype'] == "crypto_LUKS") && (! $d['partitions'][0]['mounted'])  && (! $d['partitions'][0]['pass_through'])) {
+			$a = [];
+			$a['device'] = $d['device'];
+			$a['serial'] = $d['serial'];
+			$uuid_devices[] = $a;
+		}
+	}
+}
+?>
+
+<table class="tablesorter shift ups">
+<thead><tr><th>_(Change Disk UUID)_</th></tr></thead>
+</table>
+
+<form markdown="1" name="disk_uuid" method="POST" action="/update.php" target="progressFrame">
+<input type="hidden" name="#section" value="Config">
+<input type="hidden" name="#file" value="<?=UD_CONFIG_FILE;?>">
+<input type="hidden" name="#command" value="<?=UD_SETTINGS_SCRIPT;?>">
+<input type="hidden" name="#arg[1]" value="uuid_change">
+
+_(Select Disk)_:
+: <select name="change_uuid" size="1">
+	<?foreach ($uuid_devices as $d) {?>
+		<?=mk_option($UD_cfg["Config"]["change_uuid"], ("(".htmlspecialchars($d['device']).") ".htmlspecialchars($d['serial'])), (htmlspecialchars($d['serial'])." (".htmlspecialchars(basename($d['device'])).")"));?>
+	<?}?>
+</select>
+
+:ud_settings_change_uuid_plug:
+> Select the disk that you want to change the UUID. This is useful when a XFS formatted disk has been removed from the array and has the same UUID as an array disk. Drive must be unmounted to change the UUID.
+>
+> **Note:** Don't change the UUID of a pooled disk.
+:end
+
+&nbsp;
+: <span><input type="submit" value='_(Change UUID)_' title='_(Change the disk UUID)_.' <?=count($uuid_devices) ? "" : "disabled";?>><input type="button" value="_(Done)_" onclick="done()"></span>
+</form>

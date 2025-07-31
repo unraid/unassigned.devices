@@ -1,0 +1,276 @@
+/* Controls switch alignment on UD header line. */
+div.right.ud+span.status {
+	display: none;
+}
+
+.left {
+	display: inline-block;
+}
+.titleRight {
+	display: inline-block;
+	position: absolute;
+	right: 1rem;
+}
+.ud_titleFix {
+	display: inline-block;
+	padding-right: 2rem;
+}
+/* Disk mounts table formatting. */
+table.usb_mounts thead tr td:first-child {
+	padding-left: 10px;
+}
+table.usb_mounts td {
+	padding-left: 10px;
+}
+table.usb_mounts {
+	padding: 0px 0px 0px 0px;
+	border-collapse: collapse;
+	white-space: nowrap;
+}
+table.usb_mounts thead tr>td {
+	text-align: left;
+	width: 8%;
+}
+table.usb_mounts tr>td {
+	text-align: left;
+	padding-right: 4px;
+}
+table.usb_mounts tr>td+td+td {
+	text-align: center;
+}
+table.usb_mounts tr>td+td+td+td+td {
+	text-align: right;
+}
+table.usb_mounts tr>td+td+td+td+td+td+td {
+	text-align: center;
+}
+table.usb_mounts tr>td+td+td+td+td+td+td+td {
+	text-align: right;
+}
+
+/* Remote share and ISO table formatting. */
+table.samba_mounts thead tr td:first-child {
+	padding-left: 10px;
+}
+table.samba_mounts td {
+	padding-left: 10px;
+}
+table.samba_mounts {
+	padding: 0px 0px 0px 0px;
+	border-collapse: collapse;
+	white-space: nowrap;
+}
+table.samba_mounts thead tr>td {
+	text-align: left;
+	width: 8%;
+}
+table.samba_mounts tr>td+td {
+	text-align: left;
+	padding-right: 8px;
+}
+table.samba_mounts tr>td+td+td+td {
+	text-align: center;
+}
+table.samba_mounts tr>td+td+td+td+td+td+td+td+td {
+	text-align: right;
+}
+
+/* Historical devices table formtting. */
+table.usb_absent thead tr td:first-child {
+	padding-left: 10px;
+}
+table.usb_absent td {
+	padding-left: 10px;
+}
+table.usb_absent {
+	padding: 0px 0px 0px 0px;
+	border-collapse: collapse;
+	white-space: nowrap;
+}
+table.usb_absent thead tr>td {
+	text-align: left;
+	width: 8%;
+}
+table.usb_absent tr>td+td {
+	text-align: left;
+}
+table.usb_absent tr>td+td+td+td {
+	text-align: center;
+}
+
+/* Mount button. */
+button.mount {
+	user-drag: none;
+	user-select: none;
+	padding: 3px 4px 3px 6px;
+	margin: 2px 1px 2px 1px;
+	opacity:1.0
+}
+button.mount:disabled {
+	opacity:1.0
+}
+
+/* Icons. */
+i.partition-hdd {
+	margin: 5px 5px 0px 0px;
+}
+i.zfs-volume-hdd {
+	margin: 5px 5px 0px 0px;
+	padding-left: 5px;
+}
+i.clear-hdd {
+	margin: 5px 5px 0px 0px;
+	padding-left: 5px;
+}
+i.share {
+	margin: 5px 5px 0px 0px;
+}
+i.mount-share {
+	margin: 5px 5px 0px 0px;
+}
+i.partition-script {
+	margin-left: 10px;
+}
+i.partition-log {
+	margin-left: 10px;
+	margin-right: 10px;
+}
+i.samba-log {
+	margin-left: 0px;
+	margin-right: 10px;
+}
+.exec {
+	cursor: pointer;
+}
+i.fa-append {
+	margin: 0px;
+	font-size: 0.8em;
+	position: relative;
+	left: -0.3em;
+	top: 0.7em;
+}
+i.fa-switch {
+	margin: 5px 5px 0px 0px;
+}
+
+/* Text underline. */
+.underline {
+	text-decoration: underline;
+}
+
+/* Toggle switch alignment with text. */
+.switch-button-background {
+	margin-top: 2px!important
+}
+
+/* Style for the disabled clear button */
+#clear-button[disabled] {
+	opacity:0.5
+}
+
+/* Style for the disabled delete button */
+#delete-button[disabled] {
+	opacity:0.5
+}
+
+/* Style for the disabled default button */
+#default-button[disabled] {
+	opacity:0.5
+}
+
+/* Style for the disabled detach button */
+#detach-button[disabled] {
+	opacity:1.0
+}
+
+/* Style for the disabled attach button */
+#attach-button[disabled] {
+	opacity:1.0
+}
+
+/* Style for the disabled abort button */
+#abort-button[disabled] {
+	opacity:1.0
+}
+
+/* Left align edit settings help text. */
+span.help-title {
+	text-align:left;
+}
+
+/* Line up switches on device settings page. */
+.span-switches {
+    display: inline-flex;
+    margin-right: 10px;
+}
+
+/* Inline form. *.
+form.inline {
+	display: inline;
+	margin: 0px;
+	padding: 0px;
+}
+
+/* File tree layout. */
+.fileTree {
+	width: 305px;
+	max-height: 150px;
+	overflow: scroll;
+	position: absolute;
+	z-index: 100;
+	display: none;
+	color: initial;
+}
+
+/* Radio images used for NFS and SMB remote share selections. */
+.image-radio input {
+	margin:0;padding:0;
+	-webkit-appearance:none;
+	-moz-appearance:none;
+	appearance:none;
+}
+.image-radio input:active +.image-radio-label {
+	opacity: .9;
+}
+.image-radio input:checked +.image-radio-label {
+	-webkit-filter: none;
+	-moz-filter: none;
+	filter: none;
+}
+.image-radio-label {
+	cursor:pointer;
+	background-size:contain;
+	background-repeat:no-repeat;
+	display:inline-block;
+	width:100px;height:70px;
+	-webkit-transition: all 100ms ease-in;
+	-moz-transition: all 100ms ease-in;
+	transition: all 100ms ease-in;
+	-webkit-filter: brightness(1.8) grayscale(1) opacity(.7);
+	-moz-filter: brightness(1.8) grayscale(1) opacity(.7);
+	filter: brightness(1.8) grayscale(1) opacity(.7);
+}
+.image-radio-label:hover {
+	-webkit-filter: brightness(1.2) grayscale(.5) opacity(.9);
+	-moz-filter: brightness(1.2) grayscale(.5) opacity(.9);
+	filter: brightness(1.2) grayscale(.5) opacity(.9);
+}
+.image-radio-linux {
+	background-image: url(/plugins/unassigned.devices/icons/nfs-radio.png);
+}
+.image-radio-windows {
+	background-image: url(/plugins/unassigned.devices/icons/smb-radio.png);
+}
+
+/* Ensure underline applies to the entire link, including icon and text */
+.underline-icon {
+	text-decoration: none; /* Prevent default underlining */
+}
+
+.underline-icon:hover {
+	text-decoration: underline; /* Underline on hover */
+}
+
+.underline-icon i, .underline-icon span {
+	text-decoration: inherit; /* Ensure children inherit the underline */
+}

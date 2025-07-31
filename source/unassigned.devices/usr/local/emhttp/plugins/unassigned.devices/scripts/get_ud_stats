@@ -1,0 +1,375 @@
+#!/usr/bin/php
+<?php
+/* Copyright 2020-2025, Dan Landon
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License version 2,
+ * as published by the Free Software Foundation.
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ */
+
+/* Load the UD library file if it is not already loaded. */
+require_once("plugins/unassigned.devices/include/lib.php");
+
+/* Set the level for debugging. */
+$DEBUG_LEVEL	= (int) ($argv[4] ?? 0);
+
+/* Get the comand to execute. */
+$COMMAND	= $argv[1];
+
+$pidFile			= "/var/run/get_ud_stats";
+$tc 				= "/var/state/".UNASSIGNED_PLUGIN."/ping_status.json";
+$var				= @parse_ini_file(DOCROOT."/state/var.ini");
+$remote_test		= false;
+
+/* Capitalize the local_tld.  Default local TLD is 'LOCAL'. */
+$default_tld	= "LOCAL";
+$local_tld		= (isset($var['LOCAL_TLD']) && ($var['LOCAL_TLD'])) ? strtoupper(trim($var['LOCAL_TLD'])) : $default_tld;
+
+/* See if the server port is open. */
+function is_server_alive($server, $port) {
+	$is_alive	= trim(shell_exec("/usr/bin/nice /usr/bin/timeout 10 bash -c '(echo >/dev/tcp/{$server}/{$port}) &>/dev/null'; echo $?")) == 0;
+
+	return $is_alive;
+}
+
+/* Is the server currently on line. */
+function is_server_online($server, $protocol, $log = false) {
+	global $tc, $remote_test, $local_tld;
+
+	/* The check for a remote server to be online is just a simple open port check. The checks are done as follows:
+		- Check the original server name.
+		- Then check the IP address if the name does not resolve.
+	*/
+
+	/* Determine the port number from the protocol. */
+	switch ($protocol) {
+		case "NFS":
+			$port = NFS_PORT;
+			break;
+		case "SMB":
+			$port = SMB_PORT;
+			break;
+		case "RPC":
+			$port = RPC_PORT;
+			break;
+		default:
+			/* Default is SMB. */
+			$port = SMB_PORT;
+			break;
+	}
+
+	/* Set as ping status has not changed. */
+	$changed	= false;
+
+	/* Ping status file key for this server. */
+	$name	= $server.".".$protocol;
+
+	/* Get the ping status json file. */
+	$ping_status	= MiscUD::get_json($tc);
+
+	/* Capitalize the server name. */
+	$server	= strtoupper($server);
+	if ($server) {
+		/* See if the server was last seen as being online. */
+		$was_alive		= (($ping_status[$name]['online'] ?? "") == 'yes');
+
+		/* Is the remote server on line and responding. */
+		$is_alive		= is_server_alive($server, $port);
+
+		/* If the server status fails with the name, use the server IP address found with 'arp'. */
+		$lookup			= true;
+		if ((! $is_alive) && (! MiscUD::is_ip($server))) {
+			if ($remote_test) {
+				echo("Server Name did not work");
+				if (strpos($server, '.'.$local_tld) === false) {
+					echo(" - try '".$server.".".$local_tld."'\n");
+				} else {
+					echo("\n");
+				}
+			}
+
+			$ip_address	= trim(shell_exec("/sbin/arp -a ".escapeshellarg($server)." 2>&1 | grep -v 'arp:' | /bin/awk '{print $2}'") ?? "");
+			$ip_address = str_replace(['(', ')'], '', $ip_address);
+			if (MiscUD::is_ip($ip_address)) {
+				if ($remote_test) {
+					echo("Using server IP address ".$ip_address."\n");
+				}
+				$is_alive	= is_server_alive($ip_address, $port);
+			} else {
+				$lookup		= false;
+			}
+		}
+
+		/* Show results of the port test. */
+		if (($remote_test) && ($lookup)) {
+			if ($is_alive) {
+				echo("Remote server '".$protocol."' port ".$port." is open\n");
+			} else {
+				echo("Remote server '".$protocol."' port ".$port." is not open\n");
+			}
+		}
+
+		/* Confirm the remote server is actually serving NFS shares. */
+		if (($protocol == "NFS") && ($is_alive)) {
+			/* Check for NFS shares available on the remote server. */
+			$output	= trim(shell_exec("/usr/sbin/showmount -e ".escapeshellarg($server)." 2>/dev/null") ?? "");
+
+			/* See if showmount is outputting results. */
+			if (! $output) {
+				$is_alive	= false;
+			}
+
+			/* Show results of the showmount test. */
+			if ($remote_test) {
+				/* Check that there are NFS mounts available on the remote server. */
+				if ($output) {
+					echo("The 'showmount -e' command results:\n".$output.($output ? "\n" : ""));
+				} else {
+					echo("The 'showmount -e' command is not showing remote NFS shares\n");
+				}
+			}
+		}
+
+		/* Get the number of pings we've checked since it went offline. */
+		$no_pings		= $ping_status[$name]['no_pings'] ?? 0;
+
+		/* If it is not online then start counts for being offline. */
+		if ((! $is_alive) && (! $remote_test) && ($protocol != "RPC") ) {
+			/* Check for three consecutive negative pings before declaring it is off-line. */
+			$no_pings++;
+			if (($no_pings <= 3) && (($ping_status[$name]['online'] ?? "") == 'yes')) {
+				$is_alive = true;
+			} else if ($no_pings > 3){
+				$no_pings = 0;
+			}
+		} else {
+			$no_pings = 0;
+		}
+
+		/* When the server first goes offline, log a message. */
+		if ($was_alive != $is_alive) {
+			if (! $is_alive) {
+				if ($protocol == "NFS") {
+					unassigned_log("Remote server '".$server."' appears to be offline; check NFS configuration.");
+				} else {
+					unassigned_log("Remote server '".$server."' port '".$port."' is not open; server appears to be offline.");
+				}
+			}
+
+			$changed = true;
+		}
+
+		/* Update the ping status. */
+		$ping_status[$name] = array('no_pings' => $no_pings, 'online' => $is_alive ? 'yes' : 'no', 'changed' => $changed ? 'yes' : 'no');
+	}
+
+	/* Update the server status file. */
+	MiscUD::save_json($tc, $ping_status);
+
+	return $is_alive;
+}
+
+/* Ping all remote servers to check for being on-line. */
+function ping_servers() {
+	global $samba_config;
+
+	/* Refresh the ping status. */
+	$samba_mounts	= $samba_config;
+	if (is_array($samba_mounts)) {
+		/* Ceate an array of unique server names/ip addresses. */
+		$srvr	= [];
+		foreach ($samba_mounts as $device => $mount) {
+			if (isset($mount['ip'])) {
+				$server			= $mount['ip'];
+				$protocol		= $mount['protocol'];
+				$name			= $server.".".$protocol;
+				$srvr[$name]	= array('server' => $server, 'protocol' => $protocol);
+			}
+		}
+
+		/* Now ping every server to check for it being on-line. */
+		foreach ($srvr as $device => $ping) {
+			/* This updates the ping_status file with the current state of the remote server. */
+			is_server_online($ping['server'], $ping['protocol']);
+		}
+	}
+}
+
+/* Function to get supported NFS versions */
+function getSupportedNFSVersions($server) {
+	$rc	= false;
+
+	/* Fetch and trim the output from rpcinfo */
+	$output = trim(shell_exec("/sbin/rpcinfo -p ".escapeshellarg($server)." | grep nfs"));
+
+	/* Parse the output to display supported NFS versions */
+	$nfs_versions = [];
+	$lines = explode("\n", $output); // Split the output into lines
+
+	foreach ($lines as $line) {
+		/* Split each line by whitespace */
+		$parts = preg_split('/\s+/', $line);
+
+		/* Check if the line contains the expected data */
+		if (count($parts) >= 3 && $parts[1] === '100003') { // 100003 indicates the NFS program
+			$version = $parts[2];
+			$nfs_versions[$version] = true; // Use a key for unique versions
+		}
+	}
+
+	/* Display the supported NFS versions */
+	if (!empty($nfs_versions)) {
+		ksort($nfs_versions, SORT_NATURAL);
+		echo "NFS versions available: " . implode(", ", array_keys($nfs_versions)) . "\n";
+
+		$rc	= true;
+	} else {
+		echo "Cannot determine the NFS versions on Remote Server\n";
+	}
+
+	return($rc);
+}
+
+/* Function to get the size, used, and free space of a mountpoint */
+function getMountpointSpaceInfo($mountpoint, $zfs) {
+	$result = "";
+
+	/* Check if the mountpoint is a ZFS file system */
+	if ($zfs) {
+		$zfsCommand = '/usr/sbin/zfs list -Hp -o used,avail ' . escapeshellarg($mountpoint) . ' 2>/dev/null';
+		$zfsOutput = timed_exec(10, $zfsCommand);
+	} else {
+		$zfsOutput	= "";
+	}
+
+	/* If the mountpoint is a zfs file system. get the stats using zfs. */
+	if (($zfsOutput) && ($zfsOutput !== "command timed out")) {
+		/* Parse the ZFS output */
+		$info = preg_split('/\s+/', trim($zfsOutput));
+
+		if (count($info) === 2) {
+			/* Calculate total size, used, and free space in 1K blocks */
+			$used		= intval($info[0] / 1024);
+			$free		= intval($info[1] / 1024);
+			$totalSize	= $used + $free;
+
+			/* Format the output as size used free with a single space as delimiter */
+			$result = sprintf("%d %d %d", $totalSize, $used, $free);
+		}
+	}
+
+	/* If the mountpoint is not zfs, use df to get the stats. */
+	if (! $result) {
+		/* If not a ZFS file system, use df to get the size, used, and free space */
+		$dfCommand	= '/usr/bin/df ' . escapeshellarg($mountpoint) . ' --output=size,used,avail | /bin/grep -v \'1K-blocks\' 2>/dev/null';
+		$dfOutput	= timed_exec(10, $dfCommand);
+
+		if (($dfOutput) && ($dfOutput !== "command timed out")) {
+			$result	= $dfOutput;
+		}
+	}
+
+	return $result;
+}
+
+/* Get the size, used, and free space on device. */
+function df_status($tc, $mountpoint, $zfs) {
+
+	/* Get the status of the mounted device. */
+	$df_status	= MiscUD::get_json($tc);
+
+	/* Get the current stats if previously set. */
+	$result	= $df_status[$mountpoint]['stats'] ?? "";
+
+	/* Save new time so the status will not be requested again in case it takes a while for df to work. */
+	$df_status[$mountpoint] = array('timestamp' => time(), 'stats' => $result);
+	MiscUD::save_json($tc, $df_status);
+
+	/* Get the new stats from df. */
+	$result = getMountpointSpaceInfo($mountpoint, $zfs);
+
+	/* Save the new stats if df doesn't time out. */
+	if ($result) {
+		$df_status[$mountpoint] = array('timestamp' => time(), 'stats' => $result);
+		MiscUD::save_json($tc, $df_status);
+	}
+}
+
+switch ($COMMAND) {
+	case 'ping':
+		/* If we are already running, skip the update so we don't duplicate the instances of this ping script. */
+		if (! file_exists($pidFile)) {
+			/* Get the current PID and save it to the file. */
+			file_put_contents($pidFile, getmypid());
+
+			try {
+				/* Update ping status on all remote servers. */
+				ping_servers();
+			} finally {
+				/* Ensure PID file is removed when script is done. */
+				if (file_exists($pidFile)) {
+					@unlink($pidFile);
+				}
+			}
+		}
+		break;
+
+	case 'df_status':
+		/* Update size, used, and free stats on mounted device. */
+		df_status($argv[2], $argv[3], ($argv[4] == "true"), $argv[5]);
+		break;
+
+	case 'is_online':
+		/* If we are already running, skip the update so we don't duplicate the instances of this ping script. */
+		if (! file_exists($pidFile)) {
+			/* Get the current PID and save it to the file. */
+			file_put_contents($pidFile, getmypid());
+
+			try {
+				/* Check that the remote server is online. */
+				is_server_online($argv[2], ($argv[3] ?? "SMB"), true);
+			} finally {
+				/* Ensure PID file is removed when script is done. */
+				if (file_exists($pidFile)) {
+					@unlink($pidFile);
+				}
+			}
+		}
+		break;
+
+	case 'remote_test':
+			$remote_test	= true;
+			$server			= $argv[2] ?? "";
+			if ($server) {
+				/* Does server respond to a ping. */
+				if (trim(shell_exec("/bin/ping -c 1 -W 1 ".escapeshellarg($server)." >/dev/null 2>&1; echo $?")) == 0 ) {
+					echo("Server '".$server."' responds to a 'ping'\n");
+				} else {
+					echo("Server '".$server."' does not respond to a 'ping' - check Server Name or IP address\n");
+				}
+
+				echo("Testing SMB...\n");
+				if (is_server_online($server, "SMB", true)) {
+					echo("** Remote Server is online for SMB\n");
+				} else {
+					echo("** Remote Server is not online for SMB\n");
+				}
+
+				echo("\nTesting NFS...\n");
+				is_server_online($server, "RPC", true);
+				if ((is_server_online($server, "NFS", true)) && (getSupportedNFSVersions($server))) {
+					echo("** Remote Server is online for NFS\n");
+				} else {
+					echo("** Remote Server is not online for NFS\n");
+				}
+			}
+		break;
+
+	default:
+		exit(0);
+		break;
+}
+?>

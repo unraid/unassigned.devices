@@ -1,0 +1,218 @@
+#!/usr/bin/php
+<?php
+/* Copyright 2016-2025, Dan Landon
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License version 2,
+ * as published by the Free Software Foundation.
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ */
+
+/* Load the UD library file if it is not already loaded. */
+require_once("plugins/unassigned.devices/include/lib.php");
+
+/* Save changed settings. */
+function save() {
+	global $ud_config;
+
+	/* Save the updated config onto the flash. */
+	save_ini_file(UD_CONFIG_FILE, $ud_config);
+}
+
+/* Save settings and update shares based on any changes to settings. */
+function apply() {
+	global $ud_config;
+
+	unassigned_log("Updating share settings...");
+
+	/* Remove the old shares based on the old settings. */
+	remove_shares();
+
+	/* Save the updated config onto the flash. */
+	save_ini_file(UD_CONFIG_FILE, $ud_config);
+
+	/* Reload the shares based on the new settings. */
+	reload_shares();
+
+	unassigned_log("Share settings updated.");
+}
+
+
+/* Save settings and update shares based on any changes to settings. */
+function shares() {
+	unassigned_log("Updating share settings...");
+
+	/* Remove the old shares based on the old settings. */
+	remove_shares();
+
+	/* Reload the shares based on the new settings. */
+	reload_shares();
+
+	unassigned_log("Share settings updated.");
+}
+
+/* Change the UUID of a device. */
+function uuid_change() {
+	global $ud_config;
+
+	/* Get a lock so file changes can be made. */
+	$lock_file	= get_file_lock("cfg");
+
+	/* Get the device from the passed in device and serial number. */
+	$dev		= $ud_config['Config']['change_uuid'];
+	$first		= strpos($dev, "(") + 1;
+	$last		= strpos($dev, ")") - 1;
+	$dev		= substr($dev, $first, $last);
+
+	/* Change the device UUID. */
+	change_UUID($dev);
+
+	/* Now clear the setting from the tmp file. */
+	unset($ud_config['Config']['change_uuid']);
+	save_ini_file(UD_CONFIG_FILE, $ud_config, false);
+
+	/* Release the file lock. */
+	release_file_lock($lock_file);
+}
+
+/* Upgrade ZFS on a device. */
+function zfs_upgrade() {
+	global $ud_config;
+
+	/* Get a lock so file changes can be made. */
+	$lock_file	= get_file_lock("cfg");
+
+	/* Get the device from the passed in device and serial number. */
+	$pool_name		= $ud_config['Config']['zfs_upgrade'];
+	$first			= strpos($pool_name, "(") + 1;
+	$last			= strpos($pool_name, ")") - 1;
+	$pool_name		= substr($pool_name, $first, $last);
+
+	/* Upgrade the ZFS on the device. */
+	if ($pool_name) {
+		upgrade_ZFS_pool($pool_name);
+	} else {
+		unassigned_log("Warning: ZFS Upgrade - no pool name specified!");
+	}
+
+	/* Now clear the setting from the tmp file. */
+	unset($ud_config['Config']['zfs_upgrade']);
+	save_ini_file(UD_CONFIG_FILE, $ud_config, false);
+
+	/* Release the file lock. */
+	release_file_lock($lock_file);
+}
+
+/* Set an encrypted device password. */
+function set_pass() {
+	global $ud_config;
+
+	/* Get a lock so file changes can be made. */
+	$lock_file	= get_file_lock("cfg");
+
+	$serial			= $ud_config['Config']['pswd_serial'];
+	$password		= $ud_config['Config']['password'];
+
+	/* Now clear the settings from the tmp file. */
+	unset($ud_config['Config']['pswd_serial']);
+	unset($ud_config['Config']['password']);
+
+	/* Save the new configuration. */
+	save_ini_file(UD_CONFIG_FILE, $ud_config, false);
+
+	/* Release the file lock. */
+	release_file_lock($lock_file);
+
+	/* Save the new password */
+	set_config($serial, "pass", addslashes(encrypt_data($password)));
+}
+
+/* Update the NFS rule. */
+function nfs_settings() {
+	global $ud_config;
+
+	unassigned_log("Updating share settings...");
+
+	/* Make file changes. */
+	$cfg		= $ud_config;
+
+	if (isset($cfg['Config']['new_nfs_rule'])) {
+		/* Get a lock so file changes can be made. */
+		$lock_file			= get_file_lock("cfg");
+
+		/* Remove cr and leave new line. */
+		$new_nfs_rule		= str_replace(["\r", " "], "", $cfg['Config']['new_nfs_rule'] ?? "");
+
+		/* Remove all spaces */
+		$new_nfs_rule = str_replace(' ', '', $new_nfs_rule);
+
+		/* Split the text into lines. */
+		$lines = explode("\n", $new_nfs_rule);
+
+		/* Filter out any empty lines. */
+		$lines = array_filter($lines, function($line) {
+			return !empty($line);
+		});
+
+		/* Join the lines with a space. */
+		$result = implode(' ', $lines);
+
+		/* Set the new nfs rule. */
+		$cfg['Config']['nfs_rule']	= $result;
+
+		/* Now clear the settings from the tmp file. */
+		unset($cfg['Config']['new_nfs_rule']);
+
+		/* Save the new configuration. */
+		save_ini_file(UD_CONFIG_FILE, $cfg, false);
+
+		/* Release the file lock. */
+		release_file_lock($lock_file);
+	}
+
+	/* Update ud_config. */
+	$ud_config	= $cfg;
+
+	/* Apply new settings. */
+	apply();
+}
+
+/* Main entry point, */
+switch ($argv[1]) {
+	case 'save':
+		save();
+		break;
+
+	case 'apply':
+		apply();
+		break;
+
+	case 'shares':
+		shares();
+		break;
+
+	case 'uuid_change':
+		uuid_change();
+		break;
+
+	case 'zfs_upgrade':
+		zfs_upgrade();
+		break;
+
+	case 'set_pass':
+		set_pass();
+		break;
+
+	case 'nfs_settings':
+		nfs_settings();
+		break;
+
+	default:
+		unassigned_log("Error: 'rc.settings {$argv[1]}' not understood");
+		unassigned_log("rc.settings usage: 'save', 'apply', 'uuid_change', 'set_pass', 'nfs_settings'");
+		exit(0);
+		break;
+}
+?>

@@ -1,0 +1,1060 @@
+#!/usr/bin/php
+<?php
+/* Copyright 2015, Guilherme Jardim
+ * Copyright 2016-2025, Dan Landon
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License version 2,
+ * as published by the Free Software Foundation.
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ */
+
+/* Load the UD library file if it is not already loaded. */
+require_once("plugins/unassigned.devices/include/lib.php");
+
+$COMMAND	= $argv[1] ?? "";
+$DEVNAME	= $_ENV['DEVNAME'] ?? ( $argv[2] ?? "" );
+$luks_dev	= (strpos($DEVNAME, "/dev/mapper/") !== false);
+$DEVNAME	= ((isset($DEVNAME)) && (file_exists($DEVNAME)) && (! $luks_dev)) ? realpath($DEVNAME) : $DEVNAME;
+$dev_pos	= (isset($DEVNAME)) ? strpos($DEVNAME, 'name=') : false;
+
+if ($dev_pos !== false) {
+	$dev_name		= substr($DEVNAME, $dev_pos+5);
+
+	/* Set DEVNAME as not defined.  The operation will fail if the DEVNAME is not defined. */
+	$DEVNAME		= "";
+	foreach (get_all_disks_info() as $disk) {
+		if ($disk['unassigned_dev'] == $dev_name) {
+			if ($COMMAND != "spindown") {
+				$DEVNAME = basename($disk['device']);
+			} else {
+				$DEVNAME = basename($disk['ud_dev']);
+			}
+			break;
+		}
+	}
+} elseif ($COMMAND != "spindown") {
+	$sf = $paths['dev_state'];
+	if (is_file($sf) && (isset($DEVNAME)) && (strpos(basename($DEVNAME), 'dev') !== false)) {
+		$devs = @parse_ini_file($sf, true);
+		$DEVNAME = $devs[$DEVNAME]['device'] ?? $DEVNAME;
+	}
+} else {
+	$sf = $paths['dev_state'];
+	if (is_file($sf) && (strpos(basename($DEVNAME), 'dev') === false)) {
+		$DEVNAME = get_disk_dev(MiscUD::base_device(basename($DEVNAME)));
+	}
+}
+
+/* If the DEVNAME is empty, the device is not defined - exit with an error. */
+if (! $DEVNAME) {
+	unassigned_log("rc.unassigned died with no DEVNAME");
+	die("Fail: device not defined.\n");
+}
+
+/* Create array for mount button status files. */
+$remove = [];
+$result	= "";
+
+/* Mount devices. */
+function unassigned_mount() {
+	global $DEVNAME, $paths, $result;
+
+	/* Set as operation was successful. */
+	$result	= "success";
+
+	/* Mount local disks. */
+	foreach (get_unassigned_disks() as $name => $disk) {
+		$device		= $disk['device'];
+
+		$disk_info	= get_disk_info($device);
+
+		/* If disk is passed through or is marked as an array disk, skip to the next disk. */
+		if (($disk_info['pass_through']) || ($disk_info['array_disk'])) {
+			continue;
+		}
+
+		/* If the device doesn't have a serial number it cannot be mounted. */
+		if (! $disk_info['serial']) {
+			unassigned_log("Disk '".$device."' does not have a serial number and cannot be mounted.");
+			continue;
+		}
+
+		/* If disk is formatting, mounting, or unmounting, skip to the next one. */
+		if (($disk_info['formatting']) || ($disk_info['mounting']) || ($disk_info['unmounting'])) {
+			continue;
+		}
+
+		/* Now mount the partitions. */
+		$auto_mount	= true;
+		foreach ($disk['partitions'] as $partition)
+		{
+			if ( (preg_match("#".$DEVNAME."#i", realpath($partition))) || $DEVNAME == "auto" || $DEVNAME == "autodevices" ) {
+				/* Get partition info. */
+				$info = get_partition_info($partition);
+				/* If partition info is non-existent, skip this partition. */
+				if (! isset($info)) {
+					continue;
+				}
+
+				/* If disk is not set to auto mount, skip to the next disk. */
+				if (($info['fstype']) && (! $disk_info['automount']) && ( $DEVNAME == "auto" || $DEVNAME == "autodevices" || isset($_ENV['DEVNAME']) )) {
+					if ($auto_mount) {
+						unassigned_log("Disk with ID '{$info['serial']} (".$disk_info['unassigned_dev'].")' is not set to auto mount.");
+						$auto_mount	= false;
+					}
+					continue;
+				}
+
+				/* Create the mounting status file for this device. */
+				$device	= ($info['fstype'] != "crypto_LUKS") ? $info['device'] : $info['luks'];
+
+				/* Create mounting status file. */
+				addFile(sprintf($paths['mounting'], basename($device)));
+
+				unassigned_log("Partition found with the following attributes: ".(implode(', ', array_map(function($v, $k){$v = (strpos($k, "pass") !== false) && (strpos($k, "pass_through") === false)? "*******" : $v; return "$k='$v'"; }, $info, array_keys($info)))), $GLOBALS['UDEV_DEBUG']);
+
+				/* If partition does not have a file system it cannot be mounted. */
+				if (! $info['fstype']) {
+					unassigned_log("Partition '".$info['device']."' does not have a file system and cannot be mounted.");
+					continue;
+				}
+
+				/* See if the mountpoint is a duplicate reserved, share, or UD name. Don't mount if a duplicate.*/
+				if (! check_for_duplicate_share(($info['fstype'] == "crypto_LUKS" ? $info['luks'] : $info['device']), basename($info['mountpoint']), true)) {
+					unassigned_log("Disk with serial '{$info['serial']}', mountpoint '".basename($info['mountpoint'])."' cannot be mounted.");
+
+					/* Execute device script with error mounting action. */
+					execute_script($info, "ERROR_MOUNT");
+
+					$result	= "failure";
+					continue;
+				}
+
+				if ($info['device']) {
+					unassigned_log("Mounting partition '".basename($device)."' at mountpoint '{$info['mountpoint']}'...");
+
+					/* Cannot mount disk with 'UNRAID' label. */
+					if ($info['label'] == "UNRAID") {
+						unassigned_log("Error: Cannot mount device '".$device."' with label 'UNRAID'.");
+
+						/* Execute device script with error mount action. */
+						execute_script($info, "ERROR_MOUNT");
+
+						$result	= "failure";
+					} else {
+						/* Mount the disk. */
+						if (do_mount($info)) 
+						{
+							/* Add smb and nfs shares for this device. */
+							if ($info['shared']) {
+								/* If the disk is mounted read only, don't enable recycle bin. */
+								$mounted_read_only	= $info['read_only'];
+
+								/* If the device is vfat file system, enable fat fruit. */
+								$fat_fruit	= (($info['fstype'] == "vfat") || ($info['fstype'] == "exfat"));
+
+								/* Add samba and nfs shares. */
+								add_smb_share($info['mountpoint'], (! $mounted_read_only), $fat_fruit);
+								add_nfs_share($info['mountpoint']);
+							} else {
+								unassigned_log("Device '".$device."' is not set to be shared.");
+							}
+
+							/* Execute device script with add action. */
+							execute_script($info, "ADD");
+
+							/* Update the partition info. */
+							$info = get_partition_info($partition);
+							export_disk($info, true);
+						} else if (! $info['mounted']) {
+							/* There was an error mounting the disk. */
+							unassigned_log("Partition '".$info['label']."' cannot be mounted.");
+
+							/* Execute device script with error mount action. */
+							execute_script($info, "ERROR_MOUNT");
+
+							$result	= "failure";
+						}
+					}
+				} else {
+					unassigned_log("Error: Cannot mount null device with serial '{$info['serial']}'.");
+				}
+			}
+		}
+	}
+
+	/* Mount a zfs volume. */
+	/* /dev/zd* devices only. */
+	if (strpos($DEVNAME, "/dev/zd") !== false) {
+		/* Mount a zfs volume. */
+		foreach(get_unassigned_disks() as $disk) {
+			foreach ($disk['partitions'] as $partition) {
+				$info = get_partition_info($partition);
+				if ($info['mounted']) {
+					foreach (get_zvol_info($info) as $k => $zvol) {
+						if ( (preg_match("#".$DEVNAME."#i", $zvol['device']))) {
+							/* Create mounting status file. */
+							addFile(sprintf($paths['mounting'], basename($zvol['device'])));
+
+							$rc = do_mount($zvol);
+							if (! $rc) {
+								unassigned_log("ZFS Volume '".$k."' cannot be mounted.");
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	/* Mount Remote mounts. */
+	if (strpos($DEVNAME, "//") === 0 || strpos($DEVNAME, ":/") || $DEVNAME == "auto" || $DEVNAME == "autoshares") {
+		/* Get the remote share mount wait delay from the UD settings. */
+		$remote_share_wait	= (int) get_config("Config", "remote_share_wait");
+		$remote_share_wait	= ($remote_share_wait > 5) ? $remote_share_wait : 5;
+
+		/* If remote shares are being mounted from initial array start, delay mounting by the user set time or default. */
+		if (($DEVNAME == "auto") || ($DEVNAME == "autoshares")) {
+			unassigned_log("Waiting ".$remote_share_wait." secs before mounting Remote Shares...");
+			sleep($remote_share_wait);
+
+			/* Refresh the ping status before trying to mount remote devices. */
+			exec(DOCROOT."/plugins/unassigned.devices/scripts/get_ud_stats ping");
+
+			/* Try three times to mount the remote share. */
+			$max_attempts	= 3;
+		} else {
+			$max_attempts	= 1;
+		}
+
+		$attempts		= 0;
+		$result			= "failure";
+
+		/* Try three times to mount all remote shares to be sure they can be mounted if the remote server is not immediately available. */
+		while (($result == "failure") && ($attempts < $max_attempts)) {
+			$result		= "success";
+			foreach (get_samba_mounts() as $info) {
+				$device = $info['device'];
+				if ( ($DEVNAME == $device) || ($DEVNAME == "auto") || ($DEVNAME == "autoshares") ) {
+					/* If we are auto mounting remote shares and the device is already mounted, skip to the next one. */
+					if ( (($DEVNAME == "auto") || ($DEVNAME == "autoshares")) && ($info['mounted']) ) {
+						continue;
+					}
+
+					/* If remote share is already mounting or unmounting, skip to the next one. */
+					if (($attempts == 0) && ($info['mounting']) || ($info['unmounting'])) {
+						continue;
+					}
+
+					/* if remote mount is not set to auto mount, go to the next one. */
+					if (! $info['automount'] && ($DEVNAME == "auto" || $DEVNAME == "autoshares")) {
+						if ($attempts == 0) {
+							unassigned_log("Remote Share '".$info['device']."' is not set to auto mount.");
+						}
+						continue;
+					}
+
+					/* Create the mounting status file. */
+					$mount_device = basename($info['ip'])."_".basename($info['path']);
+
+					/* Create mounting status file. */
+					addFile(sprintf($paths['mounting'], $mount_device));
+
+					/* See if the mountpoint is a duplicate reserved, share, or UD name. Don't mount if a duplicate.*/
+					if (! check_for_duplicate_share($info['device'], basename($info['mountpoint']), true)) {
+						unassigned_log("Remote Share '".$info['device']."' cannot be mounted.");
+
+						/* Execute device script with error mounting action. */
+						execute_script($info, "ERROR_MOUNT");
+
+						$result	= "failure";
+						continue;
+					}
+
+					unassigned_log("Remote Share found with the following attributes: ".(implode(', ', array_map(function($v, $k){$v = ((strpos($k, "pass") !== false) || ((strpos($k, "user") !== false) && (strpos($k, "user_command") === false))) ? "*******" : $v; return "$k='$v'"; }, $info, array_keys($info)))), $GLOBALS['UDEV_DEBUG']);
+
+					unassigned_log("Mounting Remote Share '{$info['device']}'...");
+
+					/* Mount the remote share. */
+					if ($info['invalid']) {
+						/* If the cofiguration is invalid, don't mount the device. */
+						unassigned_log("Warning: Device '".$info['device']."' has an invalid configuration and can not be mounted.");
+					} else if (do_mount($info)) {
+						if ($info['smb_share']) {
+							/* Add smb share for the remote share. */
+							add_smb_share($info['mountpoint'], ($info['fstype'] == "root"));
+							add_nfs_share($info['mountpoint']);
+
+							/* Update the samba mount status. */
+							foreach (get_samba_mounts() as $info) {
+								$device = $info['device'];
+								if ( $DEVNAME == $device ) {
+									export_disk($info, true);
+									break;
+								}
+							}
+						} else {
+							unassigned_log("Device '".$info['device']."' is not set to be shared.");
+						}
+
+						/* Execute remote mount script with add action. */
+						execute_script($info, "ADD");
+					} else {
+						/* Execute remote mount script with error mount action. */
+						execute_script($info, "ERROR_MOUNT");
+
+						$result	= "failure";
+					}
+				}
+			}
+
+			/* Check if result is success then all devices have mounted. */
+			if ($result == "success") {
+				break;
+			}
+
+			/* Try again. */
+			$attempts++;
+
+			/* Wait for remote_share_wait seconds before retrying */
+			if ($attempts < $max_attempts) {
+				unassigned_log("Waiting ".$remote_share_wait." secs before retry mounting Remote Shares...");
+
+				sleep($remote_share_wait);
+			}
+		}
+	}
+
+	/* Mount ISO File mounts. */
+	if (strpos($DEVNAME, ".iso") !== false || $DEVNAME == "auto" || $DEVNAME == "autodevices") {
+		foreach (get_iso_mounts() as $info) {
+			$device = $info['device'];
+
+			if ( $DEVNAME == $device || $DEVNAME == "auto" || $DEVNAME == "autodevices" ) {
+				/* If iso mount is not set to auto mount, skip to the next one. */
+				if (! $info['automount'] && ($DEVNAME == "auto" || $DEVNAME == "autodevices")) {
+					unassigned_log("ISO File '".$info['device']."' is not set to auto mount.");
+					continue;
+				}
+
+				/* If disk is already unmounting, or mounting, skip to the next one. */
+				if (($info['unmounting']) || ($info['mounting'])) {
+					continue;
+				}
+
+				/* Remove any special characters. */
+				$mount_device = basename($info['device']);
+
+				/* Create mounting status file. */
+				addFile(sprintf($paths['mounting'], $mount_device));
+
+				/* See if the mountpoint is a duplicate reserved, share, or UD name. Don't mount if a duplicate.*/
+				if (! check_for_duplicate_share($info['device'], basename($info['mountpoint']), true)) {
+					unassigned_log("ISO File '".$info['device']."' cannot be mounted.");
+
+					/* Execute device script with error mounting action. */
+					execute_script($info, "ERROR_MOUNT");
+
+					$result	= "failure";
+					continue;
+				}
+
+				unassigned_log("ISO File share found with the following attributes: ".(implode(', ', array_map(function($v, $k){$v = (strpos($k, "pass") !== false) ? "*******" : $v; return "$k='$v'"; }, $info, array_keys($info)))), $GLOBALS['UDEV_DEBUG']);
+
+				unassigned_log("Mounting ISO File '{$info['device']}'...");
+
+				/* Mount the iso file. */
+				if (do_mount($info)) {
+					/* Add smb and nfs shares for the iso file. */
+					add_smb_share($info['mountpoint']);
+					add_nfs_share($info['mountpoint']);
+
+					/* Execute iso file script with add action. */
+					execute_script($info, "ADD");
+
+					/* Update the iso mount status. */
+					foreach (get_iso_mounts() as $info) {
+						$device = $info['device'];
+						if ( $DEVNAME == $device ) {
+							export_disk($info, true);
+							break;
+						}
+					}
+				} else {
+					/* Execute ios file script with error mount action. */
+					execute_script($info, "ERROR_MOUNT");
+
+					$result	= "failure";
+				}
+			}
+
+			/* If we are mounting a single ISO file, we are done now. */
+			if ($DEVNAME == $device) {
+				break;
+			}
+		}
+	}
+
+	/* A udev mount event? */
+	if (isset($_ENV['DEVTYPE']) && ($_ENV['DEVTYPE'] == "partition")) {
+		unassigned_log("Mount: Received a udev 'add partition'.", $GLOBALS['UDEV_DEBUG']);
+
+		/* Set flag to tell Unraid to update devs.ini file of unassigned devices. */
+		@file_put_contents($paths['hotplug_event'], "");
+	}
+}
+
+/* Unmount devices. */
+function unassigned_umount() {
+	global $DEVNAME, $paths, $luks_dev, $result;
+
+	/* Cannot unmount a luks device. */
+	if ($luks_dev) {
+		unassigned_log("Cannot unmount device '".$DEVNAME."'!");
+		$result	= "failure";
+		return;
+	}
+
+	/* Set as operation was successful. */
+	$result= "success";
+
+	/* Set force if we are stopping the array. */
+	$force = ($DEVNAME == "all");
+
+	if (($force) && ($common_cmd = trim(escapeshellcmd(get_config("Config", "common_cmd"))))) {
+		/* Abort any common command that is running. */
+		unassigned_abort(basename($common_cmd));
+	}
+
+	/* Unmount local disks. */
+	foreach(get_unassigned_disks() as $disk) {
+		$device		= $disk['device'];
+		$disk_info	= get_disk_info($device);
+
+		/* If disk is passed through or is marked as an array disk, skip to the next disk. */
+		if (($disk_info['pass_through']) || ($disk_info['array_disk'])) {
+			continue;
+		}
+
+		/* If disk is already unmounting, skip to the next one. */
+		if ($disk_info['unmounting']) {
+			continue;
+		}
+
+		/* If disk is mounting, skip to the next one. */
+		if ($disk_info['mounting']) {
+			continue;
+		}
+
+		if (! $disk_info['automount'] && $DEVNAME == "auto" ) {
+			continue;
+		}
+
+		foreach ($disk['partitions'] as $partition) {
+			if ( (preg_match("#".$DEVNAME."#i", realpath($partition))) || $DEVNAME == "auto" || $DEVNAME == "all" ) {
+				$info = get_partition_info($partition);
+
+				unassigned_log("Partition found with the following attributes: ".(implode(', ', array_map(function($v, $k){$v = (strpos($k, "pass") !== false) && (strpos($k, "pass_through") === false)? "*******" : $v; return "$k='$v'"; }, $info, array_keys($info)))), $GLOBALS['UDEV_DEBUG']);
+
+				/* If disk is btrfs pool disk it is not independently mounted and can't be unmounted, skip to the next disk. */
+				if ($info['pool']) {
+					continue;
+				}
+
+				/* Cannot unmount disk with 'UNRAID' label. */
+				if ($info['label'] == "UNRAID") {
+					unassigned_log("Error: Cannot unmount device '{$info['device']}' with label 'UNRAID'.");
+
+					/* Execute device script with error unmount action. */
+					execute_script($info, "ERROR_UNMOUNT");
+
+					$result		= "failure";
+				} else {
+					/* If the device is mounted, unmount it. */
+					$file_system	= $info['file_system'];
+					$pool_name		= $info['pool_name'];
+					$mounted		= $info['mounted'];
+					if ($mounted) {
+						/* If forced shutdown, abort device script. */
+						if ($force) {
+							/* Abort the user script. */
+							if ($info['user_command']) {
+								unassigned_abort(dirname($info['user_command']), true);
+							}
+
+							/* Abort the device script. */
+							if ($info['command']) {
+								unassigned_abort($info['command']);
+							}
+
+							/* Kill any remaining processes on the mount point. */
+							kill_processes_on_mountpoint($info['mountpoint']);
+						}
+
+						/* Create the unmounting status file for this device. */
+						$device	= ($info['fstype'] != "crypto_LUKS") ? $info['device'] : $info['luks'];
+
+						/* Create unmounting status file. */
+						addFile(sprintf($paths['unmounting'], basename($device)));
+
+						unassigned_log("Unmounting partition '".$info['device']."' at mountpoint '{$info['mountpoint']}'...");
+
+						/* Execute device script with unmount action. */
+						execute_script($info, "UNMOUNT");
+
+						/* Unmount any zfs volumes that are mounted. */
+						$rc		= true;
+						if ($file_system == "zfs") {
+							foreach (get_zvol_info($info) as $k => $zvol) {
+								if ($zvol['mounted']) {
+									/* Create unmounting status file. */
+									addFile(sprintf($paths['unmounting'], basename($zvol['device'])));
+
+									$rc = do_unmount($zvol, $force);
+									if (! $rc) {
+										unassigned_log("ZFS Volume '".$k."' cannot be unmounted.");
+
+										$rc	= false;
+									}
+								}
+							}
+						}
+
+						/* Unmount the device. */
+						if ($rc) {
+							/* Check for a btrfs scrub running on this device and cancel if there is. */
+							if ($file_system == 'btrfs') {
+								$scrub_status	= trim(shell_exec("/sbin/btrfs scrub status ".escapeshellarg($info['mountpoint'])." | grep 'Status:' | /bin/awk '{print $2}'") ?? "");
+								if (strpos($scrub_status, "running") !== false) {
+									exec("/sbin/btrfs scrub cancel ".escapeshellarg($info['mountpoint']));
+									sleep(1);
+								}
+							}
+
+							/* Check for a zfs scrub running on this device and cancel if there is. */
+							if ($file_system == 'zfs') {
+								$scrub_status	= trim(shell_exec("/usr/sbin/zpool status ".escapeshellarg($pool_name)." | grep 'scan:'") ?? "");
+								if (strpos($scrub_status, "scrub in progress") !== false) {
+									exec("/usr/sbin/zpool scrub -s ".escapeshellarg($pool_name));
+									sleep(1);
+								}
+							}
+
+							/* Unmount the disk. */
+							$rc		= do_unmount($info, $force);
+						}
+
+						if ($rc) {
+							if ($info['fstype'] == "crypto_LUKS" ) {
+								exec("/sbin/cryptsetup luksClose ".basename($info['device'])." 2>/dev/null");
+							}
+
+							/* Remove smb and nfs shares for this device. */
+							rm_smb_share($info['mountpoint']);
+							rm_nfs_share($info['mountpoint']);
+
+							/* Execute device script with remove action. */
+							execute_script($info, "REMOVE");
+							export_disk($info, false);
+						} else {
+							unassigned_log("Partition '".$info['label']."' cannot be unmounted.");
+
+							/* Execute device script with error unmount action. */
+							execute_script($info, "ERROR_UNMOUNT");
+
+							$result	= "failure";
+						}
+					}
+				}
+			}
+		}
+	}
+
+	/* Unmount a zfs volume. */
+	/* /dev/zd* devices only. */
+	if (strpos($DEVNAME, "/dev/zd") !== false) {
+		foreach(get_unassigned_disks() as $disk) {
+			foreach ($disk['partitions'] as $partition) {
+				$info = get_partition_info($partition);
+				if ($info['mounted']) {
+					foreach (get_zvol_info($info) as $k => $zvol) {
+						if ( (preg_match("#".$DEVNAME."#i", $zvol['device']))) {
+							if ($zvol['mounted']) {
+								/* Create unmounting status file. */
+								addFile(sprintf($paths['unmounting'], basename($zvol['device'])));
+
+								$rc = do_unmount($zvol, $force);
+								if (! $rc) {
+									unassigned_log("ZFS Volume '".$k."' cannot be unmounted.");
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	/* Unmount Remote SMB/NFS mounts. */
+	if (strpos($DEVNAME, "//") === 0 || strpos($DEVNAME, ":/") || $DEVNAME == "auto" || $DEVNAME == "all") {
+		/* Unmount every samba mount if 'all' unmount. */
+		foreach (get_samba_mounts() as $info) {
+			$device = $info['device'];
+			if ( $DEVNAME == $device || $DEVNAME == "auto" || $DEVNAME == "all" ) {
+				if (! $info['automount'] && $DEVNAME == "auto" ) {
+					continue;
+				}
+				unassigned_log("Remote SMB/NFS share found with the following attributes: ".(implode(', ', array_map(function($v, $k){$v = (strpos($k, "pass") !== false) ? "*******" : $v; return "$k='$v'"; }, $info, array_keys($info)))), $GLOBALS['UDEV_DEBUG']);
+
+				/* If disk is already unmounting, skip to the next one. */
+				if ($info['unmounting']) {
+					continue;
+				}
+
+				/* If disk is mounting, skip to the next one. */
+				if ($info['mounting']) {
+					continue;
+				}
+
+				/* Unmount the remote share if it is mounted. */
+				$dev	= $info['fstype'] == "root" ? $info['mountpoint'] : $info['device'];
+
+				if ( $info['mounted'] ) {
+					/* If forced shutdown, abort device script. */
+					if ($force) {
+						/* Abort the user script. */
+						if ($info['user_command']) {
+							unassigned_abort(dirname($info['user_command']), true);
+						}
+
+						/* Abort the device script. */
+						if ($info['command']) {
+							unassigned_abort($info['command']);
+						}
+
+						/* Kill any remaining processes on the mount point. */
+						if ($info['fstype'] != "root") {
+							kill_processes_on_mountpoint($info['mountpoint']);
+						}
+					}
+
+					/* Remove special characters. */
+					$mount_device = basename($info['ip'])."_".basename($info['path']);
+
+					/* Create unmounting status file. */
+					addFile(sprintf($paths['unmounting'], $mount_device));
+
+					/* Execute the remote mount script file with unmount action. */
+					execute_script($info, "UNMOUNT");
+
+					unassigned_log("Unmounting Remote SMB/NFS Share '{$info['device']}'...");
+
+					/* Unmount the remote share. */
+					if ( do_unmount($info, $force) ) {
+						rm_smb_share($info['mountpoint']);
+						rm_nfs_share($info['mountpoint']);
+
+						/* Execute remote mount script with remove action. */
+						execute_script($info, "REMOVE");
+						export_disk($info, false);
+					} else {
+						/* Execute remote mount script with error unmount action. */
+						execute_script($info, "ERROR_UNMOUNT");
+
+						$result	= "failure";
+					}
+				} else if (! $force){
+					unassigned_log("Remote SMB/NFS share '{$info['device']}' is not mounted.");
+				}
+			}
+
+			/* If we are unmounting a single device, we are done now. */
+			if ($DEVNAME == $device) {
+				break;
+			}
+		}
+	}
+
+	/* Unmount ISO File mounts. */
+	if (strpos($DEVNAME, ".iso") !== false || $DEVNAME == "auto" || $DEVNAME == "all") {
+		foreach (get_iso_mounts() as $info) {
+			$device = $info['device'];
+			if ( $DEVNAME == $device || $DEVNAME == "auto" || $DEVNAME == "all" ) {
+				if (! $info['automount'] && $DEVNAME == "auto" ) {
+					continue;
+				}
+				unassigned_log("ISO File share found with the following attributes: ".(implode(', ', array_map(function($v, $k){$v = (strpos($k, "pass") !== false) ? "*******" : $v; return "$k='$v'"; }, $info, array_keys($info)))), $GLOBALS['UDEV_DEBUG']);
+
+				/* If disk is already unmounting, skip to the next one. */
+				if ($info['unmounting']) {
+					continue;
+				}
+
+				/* If disk is mounting, skip to the next one. */
+				if ($info['mounting']) {
+					continue;
+				}
+
+				/* If iso file is mounted, unmount it. */
+				if ( $info['mounted'] ) {
+					/* If forced shutdown, abort device script. */
+					if ($force) {
+						/* Abort the user script. */
+						if ($info['user_command']) {
+							unassigned_abort(dirname($info['user_command']), true);
+						}
+
+						/* Abort the device script. */
+						if ($info['command']) {
+							unassigned_abort($info['command']);
+						}
+
+						/* Kill any remaining processes on the mount point. */
+						kill_processes_on_mountpoint($info['mountpoint']);
+					}
+
+					/* Create mounting status file. */
+					addFile(sprintf($paths['unmounting'], basename($info['device'])));
+
+					unassigned_log("Removing ISO File share '{$info['device']}'...");
+
+					/* Execute iso script file with action unmount. */
+					execute_script($info, "UNMOUNT");
+
+					unassigned_log("Unmounting ISO File '{$info['device']}'...");
+
+
+					/* Unmount the iso file. */
+					if ( do_unmount($info, $force) ) {
+						/* Remove the smb and nfs shares. */
+						rm_smb_share($info['mountpoint']);
+						rm_nfs_share($info['mountpoint']);
+
+						/* Execute the iso file script with the remove action. */
+						execute_script($info, "REMOVE");
+						export_disk($info, false);
+					} else {
+						/* Execute the iso script with the error unmount action. */
+						execute_script($info, "ERROR_UNMOUNT");
+
+						$result	= "failure";
+					}
+				} else if (! $force) {
+					unassigned_log("Remote ISO File share '{$info['device']}' is not mounted.");
+				}
+			}
+
+			/* If we are unmounting a single ISO file, we are done now. */
+			if ($DEVNAME == $device) {
+				break;
+			}
+		}
+	}
+}
+
+/* Update udev disk info on a disk or partition change. */
+function unassigned_reload() {
+	global $paths;
+
+	$device_type	= $_ENV['DEVTYPE'] ?? "";
+	if ($device_type == "disk" || $device_type == "partition") {
+
+		unassigned_log("Reload: A udev '".$_ENV['ACTION']." ".$_ENV['DEVTYPE']."' initiated a reload of udev info.", $GLOBALS['UDEV_DEBUG']);
+
+		if (isset($_ENV['DEVLINKS'])) {
+			unassigned_log("Updating udev information...", $GLOBALS['UDEV_DEBUG']);
+
+			foreach (explode(" ", $_ENV['DEVLINKS']) as $link) {
+				get_udev_info($link, $_ENV);
+			}
+		}
+
+		/* Set flag to tell Unraid to update devs.ini file of unassigned devices. */
+		sleep(1);
+		@file_put_contents($paths['hotplug_event'], "");
+	}
+}
+
+/* A hotplug disk event has arrived. */
+function unassigned_hotplug() {
+	global $paths;
+
+	$device_type	= $_ENV['DEVTYPE'] ?? "";
+	if ($device_type == "disk") {
+
+		unassigned_log("Hotplug: A udev 'add disk' initiated a Hotplug event.", $GLOBALS['UDEV_DEBUG']);
+
+		if (isset($_ENV['DEVLINKS'])) {
+			unassigned_log("Updating udev information...", $GLOBALS['UDEV_DEBUG']);
+
+			foreach (explode(" ", $_ENV['DEVLINKS']) as $link) {
+				get_udev_info($link, $_ENV);
+			}
+		}
+
+		/* Set flag to tell Unraid to update devs.ini file of unassigned devices. */
+		sleep(1);
+		@file_put_contents($paths['hotplug_event'], "");
+	}
+}
+
+/* Spin down a disk using Unraid api. */
+function unassigned_spin_down($device) {
+	global $paths;
+
+	if (! is_file("/tmp/unassigned.devices/shut_down")) {
+		$dev = basename($device);
+
+		/* Set the spinning_down state. */
+		$tc			= $paths['run_status'];
+		$run_status	= file_exists($tc) ? json_decode(file_get_contents($tc), true) : [];
+		if (isset($run_status[$device])) {
+			if ($run_status[$device]['running'] == "yes") {
+				$run_status[$device]['spin_time']	= time();
+				$run_status[$device]['spin']		= "down";
+				@file_put_contents($tc, json_encode($run_status));
+
+				/* Spin down the disk. */
+				MiscUD::spin_disk(true, $dev);
+
+				/* Wait for the disk to finish spinning down or time out. */
+				while (is_disk_spin($dev, true)) {
+					sleep(1);
+				}
+			}
+		}
+	}
+}
+
+/* Detach the disk device. */
+function unassigned_detach($device) {
+
+	$dev = MiscUD::base_device(basename($device));
+
+	if (! is_file("/tmp/unassigned.devices/shut_down")) {
+		if (is_dir("/sys/block/".$dev."/")) {
+			exec("echo 'offline' > /sys/block/{$dev}/device/state");
+			sleep(1);
+			exec("echo '1' > /sys/block/".$dev."/device/delete");
+
+			$i	= 0;
+			/* Wait for the device to be removed. */
+			while (is_file("/sys/block/".$dev) && ($i < 25)) {
+				sleep(1);
+				$i++;
+			}
+
+			sleep(2);
+
+			if ($i < 25) {
+				unassigned_log("Device '/dev/".$dev."' has been detached.");
+			} else {
+				unassigned_log("Device '/dev/".$dev."' detach timed out.");
+			}
+		}
+	}
+}
+
+/* Attach a disk device that is detached. */
+function unassigned_attach($serial) {
+
+	/* Get this device's hostX and delete the hosts entry in case the device has been removed. */
+	$host	= MiscUD::get_device_host($serial, true);
+
+	/* Initiate a rescan of the scsi devices. */
+	if ($host) {
+		@file_put_contents("/sys/class/scsi_host/{$host}/scan", "- - -");
+	}
+
+	$file	= "";
+	$i		= 0;
+	while ((! $file) && ($i < 25)) {
+		sleep(1);
+		$file	= shell_exec("/usr/bin/ls /dev/disk/by-id/*-".$serial." 2>/dev/null");
+		$i++;
+	}
+
+	if ($i < 25) {
+		unassigned_log("Device with serial '".$serial."' has been attached.");
+	} else {
+		unassigned_log("Device with serial '".$serial."' could not be attached.");
+	}
+}
+
+/* Abort device script. */
+function unassigned_abort($script, $user_script = false) {
+	global $paths;
+
+	if (! $user_script) {
+		/* This is where the script is actually running. */
+		$command_script = $paths['scripts'].basename($script);
+		$file	= "";
+	} else {
+		$command_script = "/tmp/user.scripts/tmpScripts/".basename($script)."/script";
+		$file	= "/tmp/user.scripts/running/".basename($script);
+	}
+
+	if ($command_script) {
+		/* Get the process ID using pgrep. */
+		$cmd = "/usr/bin/pgrep -f " . escapeshellarg($command_script);
+
+		/* Get the process ID and remove newline characters, providing an empty string as a default if null. */
+		$pid = trim(shell_exec($cmd) ?? "");
+
+		/* Terminate the process using kill. Time out after 10 seconds if the processes don't stop. */
+		$i	= 0;
+		while (($pid) && ($i <10)) {
+			exec("/bin/kill ".$pid." 2>/dev/null");
+
+			/* Wait before checking again. */
+			sleep(1);
+
+			/* Get the updated PID after termination. */
+			$pid = trim(shell_exec($cmd) ?? "");
+
+			$i++;
+		}
+	}
+
+	/* Remove the user script running file. */
+	if (($user_script) && (file_exists($file))) {
+		@unlink($file);
+	}
+}
+
+/* Function to check if processes are still running on the mountpoint. */
+function areProcessesRunning($mountpoint) {
+	$output = [];
+	$exitCode = 0;
+
+	exec("/usr/bin/timeout 1 /usr/bin/fuser -s ".escapeshellarg($mountpoint), $output, $exitCode);
+
+	return $exitCode === 0;
+}
+
+/* Kill any processes left on the mountpoint to insure a clean shutdown. */
+function kill_processes_on_mountpoint($mountpoint) {
+
+	/* Kill all processes on the mountpoint. */
+	$output	= timed_exec(2, "/usr/bin/fuser -kvm ".escapeshellarg($mountpoint)." 2>/dev/null", true);
+
+	if ($output != "command timed out") {
+		/* Wait until processes are no longer running.  Time out after 10 seconds. */
+		$i	= 0;
+		while ((areProcessesRunning($mountpoint)) && ($i < 10)) {
+			sleep(1);
+			$i++;
+		}
+	}
+}
+
+/* Add status file so mount buttons will show current status of operation. */
+function addFile($file) {
+	global $remove;
+
+	/* The file name has to have all special characters removed. */
+	$file = safe_name($file, true, true);
+
+	/* Create the status file. */
+	@touch($file);
+
+	/* Add this file to the array of files to remove when operation is done. */
+	$remove[] = $file;
+
+	/* Give things a chance to settle.  This gives the pageRefresh a chance to catch up. */
+	usleep(250 * 1000);
+}
+
+/* Update json mounted disk status. */
+function export_disk($disk, $add) {
+	global $paths;
+
+	$info	= MiscUD::get_json($paths['mounted']);
+	$dev	= $disk['device'];
+	if ($add)
+	{
+		if (isset($disk["pass"])) {
+			unset($disk["pass"]);
+		}
+		$info[$dev] = $disk;
+	}
+	else
+	{
+		unset($info[$dev]);
+	}
+
+	MiscUD::save_json($paths['mounted'], $info);	
+}
+
+switch ($COMMAND) {
+	case 'mount':
+		unassigned_mount();
+		break;
+
+	case 'umount':
+		unassigned_umount();
+		break;
+
+	case 'reload':
+		unassigned_reload();
+		break;
+
+	case 'hotplug':
+		unassigned_hotplug();
+		break;
+
+	case 'spindown':
+		unassigned_spin_down($DEVNAME);
+		break;
+
+	case 'detach':
+		unassigned_detach($DEVNAME);
+		break;
+
+	case 'attach':
+		unassigned_attach($DEVNAME);
+		break;
+
+	case 'abort':
+		/* Abort the user script. */
+		$user_script	= $argv[3] ?? "";
+		if ($user_script) {
+			unassigned_abort(dirname($user_script), true);
+		}
+
+		/* Abort the device script. */
+		$device_script	= $argv[2] ?? "";
+		if ($device_script) {
+			unassigned_abort($device_script);
+		}
+
+		/* Kill any remaining processes on the mount point. */
+		$mount_point	= $argv[4] ?? "";
+		if ($mount_point) {
+			kill_processes_on_mountpoint($mount_point);
+		}
+		break;
+
+	case 'refresh':
+		break;
+
+	default:
+		unassigned_log("Error: 'rc.unassigned {$argv[1]} {$argv[2]}' not understood");
+		unassigned_log("rc.unassigned usage: 'mount', 'umount', 'reload', 'hotplug', 'spindown', 'detach', 'attach', 'refresh'");
+		exit(0);
+		break;
+}
+
+/* Clear all the state files. */
+array_map(function($file) {
+	exec("/bin/rm -f " . escapeshellarg($file) . " 2>/dev/null");
+}, $remove);
+
+/* Return result if mounting or unmounting. */
+if ($result) {
+	echo($result."\n");
+}
+?>

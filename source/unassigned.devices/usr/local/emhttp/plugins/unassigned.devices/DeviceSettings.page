@@ -1,0 +1,1207 @@
+Title="Unassigned Device Settings"
+Tag="unlink"
+---
+<?php
+/* Copyright 2015, Guilherme Jardim
+ * Copyright 2016-2025, Dan Landon
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License version 2,
+ * as published by the Free Software Foundation.
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ */
+
+/* Load the UD library file if it is not already loaded. */
+require_once("plugins/unassigned.devices/include/lib.php");
+
+$background				= "yes";
+$partition				= "";
+$disk_setting			= true;
+$show_device_switches	= true;
+$script_disabled		= "";
+$user_disabled			= "";
+$fstype					= "";
+$volume					= "";
+$id_bus					= "";
+$is_precearing			= false;
+$pass_through			= "";
+$read_only				= "";
+$show_partitions		= "";
+$width					= "";
+$disable_mount			= "";
+$disable_action			= "";
+$readonly_action		= "";
+$share					= "";
+$share_action			= "";
+$source					= "";
+$zvol					= "";
+$protocol				= "";
+$enable_encrypt			= "";
+$ntfs3_driver			= "";
+$compress_option		= "";
+$disk_device			= false;
+$samba_device			= false;
+$iso_device				= false;
+
+/* Validate the default file location. */
+/* Construct the full default file path. */
+$default_file = safe_name(UD_FLASH_PATH . ($_GET['l'] ? basename($_GET['l']) : "default_script") . ".sh", true, true);
+
+/* Validate that the default file resides in the correct directory. */
+if (strpos($default_file, UD_FLASH_PATH) !== 0) {
+	$default_file = UD_FLASH_PATH . "default_script" . ".sh";
+}
+
+/* Main entry point. */
+if (isset($_GET['s'])) {
+	/* Disk devices. */
+	$disk_device		= true;
+	$serial				= $_GET['s'];
+	$device				= $_GET['b'] ?? $_GET['l'];
+	$partition			= $_GET['p'];
+	$mount_point		= $_GET['l'];
+	$mounted			= $_GET['n'] ?? false;
+	$info				= $_GET['m'] ?? "";
+	$id_bus				= (isset($_GET['u'])) ? (($_GET['u'] == "usb") ? " - USB" : " - SATA") : "";
+	$file				= get_config($serial, "command.{$partition}");
+	$fstype				= $_GET['f'] ?? "";
+	$ud_device			= $serial;
+
+	/* Do some configuration file work */
+	/* If the script file does not exist, reset the command script file. */
+	if (($file) && (! file_exists($file))) {
+		set_config($ud_device,"command.{$partition}", "");
+		$file			= "";
+	}
+	$user_file			= get_config($ud_device,"user_command.{$partition}");
+	if ((($user_file) && (! file_exists($user_file))) || (($user_file) && (! $file))) {
+		set_config($ud_device, "user_command.{$partition}", "");
+		$user_file		= "";
+	}
+	$background			= (get_config($ud_device, "command_bg.{$partition}") != "false") ? "yes" : "no";
+	$enable_script		= (get_config($ud_device, "enable_script.{$partition}") != "false") ? "yes" : "no";
+
+	if ($fstype == "zvol") {
+		$pass_through	= (is_pass_through($ud_device, $partition)) ? "checked" : "";
+		$read_only		= (is_read_only($ud_device, true, $partition)) ? "checked" : "";
+		$disable_mount	= (is_disable_mount($ud_device, $partition)) ? "checked" : "";
+		$zfs_volume		= $device;
+		$zvol			= $partition;
+	} else {
+		$read_only		= (is_read_only($ud_device)) ? "checked" : "";
+		$pass_through	= (is_pass_through($ud_device)) ? "checked" : "";
+		$disable_mount	= (is_disable_mount($ud_device)) ? "checked" : "";
+		$zfs_volume		= "";
+		$serial 		.= ($device) ? " (".$device.")" : "";
+		$serial			.= $id_bus;
+		$zvol			= "";
+	}
+	$automount			= (is_automount($ud_device)) ? "checked" : "";
+	$usb				= ((isset($_GET['u'])) && ($_GET['u'] == "usb"));
+	$share				= config_shared($ud_device, $partition, $usb) ? "checked" : "";
+	$show_partitions	= (get_config($ud_device, "show_partitions") == "no" ) ? "" : "checked";
+	$automount_action	= "automount";
+	$name				= get_config($ud_device, "unassigned_dev");
+	$background_action	= "background";
+	$script_action		= "enable_script";
+	$share_action		= ($info) ? "toggle_share" : "toggle_historical_share";
+	$disable_action		= "toggle_disable_mount";
+	$readonly_action	= "toggle_read_only";
+	if (! $_GET['t']) {
+		$show_device_switches	= false;
+	}
+	$width				= ($fstype == "zvol") ? ($mounted ? "27%" : "40%") : ($mounted ? "70%" : "85%");
+	$volume				= ($fstype == "apfs") ? get_config($ud_device, "volume.{$partition}") : "0";
+	$is_preclearing		= shell_exec("/usr/bin/ps -ef | /bin/grep 'preclear' | /bin/grep ".escapeshellarg(MiscUD::base_device($device))." | /bin/grep -v 'grep'") != "";
+	$host				= MiscUD::get_device_host($ud_device);
+	if ($host) {
+		$connected		= (! empty(glob("/dev/disk/by-id/*-".$ud_device."*")));
+	} else {
+		$connected		= false;
+	}
+	$ntfs3_driver		= get_config($ud_device, "ntfs3_driver.".$partition);
+	$compress_option	= get_config($ud_device, "compress_option.".$partition);
+} else if (isset($_GET['d'])) {
+	/* Remote shares. */
+	$samba_device		= true;
+	$device				= $_GET['d'];
+	$mount_point		= $_GET['l'];
+	$source				= $_GET['j'];
+	$info				= $_GET['m'] ?? "";
+	$mounted			= $_GET['n'] ?? false;
+	$file				= get_samba_config($device, "command");
+
+	/* Do some configuration file work */
+	/* If the script file does not exist, reset the command script file. */
+	if (($file) && (! file_exists($file))) {
+		set_samba_config($device,"command","");
+		$file			= "";
+	}
+	$user_file			= get_samba_config($device, "user_command");
+	if ((($user_file) && (! file_exists($user_file))) || (($user_file) && (! $file))) {
+		set_samba_config($device,"user_command","");
+		$user_file		= "";
+	}
+	$background			= (get_samba_config($device, "command_bg") != "false" ) ? "yes" : "no";
+	$enable_script		= (get_samba_config($device, "enable_script") != "false" ) ? "yes" : "no";
+	$protocol			= get_samba_config($device, "protocol");
+	$disable_mount		= (is_samba_disable_mount($device)) ? "checked" : "";
+	$automount			= (is_samba_automount($device)) ? "checked" : "";
+	$share				= (is_samba_share($device)) ? "checked" : "";
+	$read_only			= (is_samba_read_only($device)) ? "checked" : "";
+	$enable_encrypt		= (is_samba_encrypted($device)) ? "yes" : "no";
+	$width				= "55%";
+	$automount_action	= "samba_automount";
+	$ud_device			= $device;
+	$background_action	= "samba_background";
+	$script_action		= "samba_enable_script";
+	$share_action		= "toggle_samba_share";
+	$disable_action		= "toggle_samba_disable_mount";
+	$readonly_action	= "toggle_samba_readonly";
+	$disk_setting		= false;
+} else if (isset($_GET['i'])) {
+	/* ISO files. */
+	$iso_device			= true;
+	$device				= $_GET['i'];
+	$mount_point		= $_GET['l'];
+	$mounted			= $_GET['n'];
+	$source				= $_GET['j'];
+	$info				= "";
+	$file				= get_iso_config($device, "command");
+	if (($file) && (! file_exists($file))) {
+		set_iso_config($device,"command","");
+		$file			= "";
+	}
+	$user_file			= "";
+	$background			= (get_iso_config($device, "command_bg") != "false" ) ? "yes" : "no";
+	$enable_script		= (get_iso_config($device, "enable_script") != "false" ) ? "yes" : "no";
+	$automount			= (is_iso_automount($device)) ? "checked" : "";
+	$witdh				= "20%";
+	$automount_action	= "iso_automount";
+	$ud_device			= $device;
+	$background_action	= "iso_background";
+	$script_action		= "iso_enable_script";
+	$disk_setting		= false;
+}
+
+/* Check if the ntfs3 module is loaded. */
+$output = [];
+exec('lsmod | grep ntfs3', $output);
+$ntfs3_driver_loaded	= $output ? true : false;
+
+/* If there is no file, or the file doesn't exist, then set as no file. */
+if (($file) && (file_exists($file))) {
+	/* Get the device script file text. */
+	$text				= htmlspecialchars(@file_get_contents($file));
+
+	$device_script_running	= is_script_running($file);
+} else {
+	/* The device script file does not exist. */
+	$file				= "";
+	$text				= "";
+
+	$device_script_running	= false;
+}
+
+/* Is the user script running. */
+$user_script_running	= ($file) ? is_script_running($user_file, true) : false;
+
+/* If the disk is mounted, disable the device script file field. */
+if ($mounted) {
+	/* Disable script operations. */
+	$script_disabled = "disabled";
+
+	/* Show that the device is mounted. */
+	$mount_pt		= $mount_point." (mounted)";
+} else {
+	$mount_pt		= $mount_point;
+}
+
+/* If there is no device or user script file, then disable the user script field. */
+if ((! $file) || (($file) && (! file_exists($file))) || (! is_dir("/boot/config/plugins/user.scripts/scripts/"))) {
+	$user_disabled = "disabled";
+}
+
+$default_text	= <<<EOT
+#!/bin/bash
+#
+# Available variables:
+#
+# ACTION - if mounting, ADD; if unmounting, UNMOUNT; if unmounted, REMOVE; if error, ERROR_MOUNT, ERROR_UNMOUNT
+# DEVICE - partition device, e.g. /dev/sda1
+# UD_DEVICE - unassigned devX designation
+# SERIAL - disk serial number
+# LABEL - partition label
+# LUKS - if the device is encrypted, this is the partition device, e.g. /dev/sda1
+# FSTYPE - partition filesystem
+# MOUNTPOINT - where the partition is mounted
+# OWNER - "udev" if executed by UDEV, otherwise "user"
+# PROG_NAME - program name of this script
+# LOGFILE - log file for this script
+
+case \$ACTION in
+  'ADD' )
+    /usr/local/emhttp/webGui/scripts/notify -e "Unraid Server Notice" -s "Unassigned Devices" -d "Device mounted" -i "normal"
+
+    if [ "\$OWNER" = "udev" ]; then
+        # do your hotplug stuff here
+        sleep 1
+    else
+        # do your user initiated stuff here
+		sleep 1
+    fi
+  ;;
+
+  'UNMOUNT' )
+    # do your stuff here
+
+	/usr/local/emhttp/webGui/scripts/notify -e "Unraid Server Notice" -s "Unassigned Devices" -d "Device unmounting" -i "normal"
+  ;;
+
+  'REMOVE' )
+    # do your stuff here
+
+	# Spin down disk - uncomment this if you want the disk to be spun down after the disk is unmounted
+#	/usr/local/sbin/rc.unassigned spindown \$UD_DEVICE
+
+	# Detach the disk - uncomment this if you want the USB disk to be detached after it is unmounted
+#	/usr/local/sbin/rc.unassigned detach \$UD_DEVICE
+
+	/usr/local/emhttp/webGui/scripts/notify -e "Unraid Server Notice" -s "Unassigned Devices" -d "Device unmounted" -i "normal"
+  ;;
+
+  'ERROR_MOUNT' )
+    # do your stuff here
+
+	/usr/local/emhttp/webGui/scripts/notify -e "Unraid Server Notice" -s "Unassigned Devices" -d "Error mounting device" -i "alert"
+  ;;
+
+  'ERROR_UNMOUNT' )
+    # do your stuff here
+
+	/usr/local/emhttp/webGui/scripts/notify -e "Unraid Server Notice" -s "Unassigned Devices" -d "Error unmounting device" -i "alert"
+  ;;
+esac
+EOT;
+?>
+
+<link rel="stylesheet" href="<?autov('/webGui/styles/jquery.switchbutton.css')?>">
+<link rel="stylesheet" href="<?autov('/webGui/styles/jquery.filetree.css')?>" >
+<link rel="stylesheet" href="<?autov("/plugins/".UNASSIGNED_PLUGIN."/assets/unassigned.css")?>">
+
+<script src="<?autov('/webGui/javascript/jquery.switchbutton.js')?>"></script>
+<script src="<?autov('/webGui/javascript/jquery.filetree.js')?>"></script>
+<script src="<?autov('/plugins/'.UNASSIGNED_PLUGIN.'/assets/arrive.min.js')?>"></script>
+
+<div class='spinner.fixed'></div>
+
+<?if ($disk_setting):?>
+<p><strong>_(Disk Serial)_: </strong><?=htmlspecialchars($serial);?></p>
+<?else:?>
+<p><strong>_(Source)_: </strong><?=htmlspecialchars($source);?></p>
+<?endif;?>
+<?if (($disk_setting) && ($fstype == "zvol")):?>
+<p><strong>_(ZFS Volume)_: </strong><?=htmlspecialchars($zfs_volume);?></p>
+<?endif;?>
+<p><strong>_(Mount Point)_: </strong><?=htmlspecialchars($mount_pt);?></p>
+
+<div style='width:<?=$width;?>;'>
+<?if ($show_device_switches):?>
+<?if ($disk_device):?>
+<?if (! $mounted):?>
+<span class='span-switches' title='_(Mark this Device as passed through to a VM or Docker Container)_.'><a><input name='pass-through' type='checkbox' class='passthrough-switch'></a></span>
+<?endif;?>
+<span class='span-switches' title='_(Disable Mount and Unmount Button)_.'><a><input type='checkbox' name='disable-mount' class='disable-mount-switch'></a></span>
+<span class='span-switches' title='_(Mount Device Read only)_.'><a><input type='checkbox' name='readonly' class='readonly-switch'></a></span>
+<?if ($fstype != "zvol"):?>
+<span class='span-switches' title='_(Mount Device when Plugged in or Array is Started)_.'><a><input type='checkbox' name='automount' class='automount-switch'></a></span>
+<?endif;?>
+<?endif;?>
+<?endif;?>
+
+<?if ($samba_device):?>
+<span class='span-switches' title='_(Disable Mount and Unmount Button)_.'><a><input type='checkbox' name='disable-mount' class='disable-mount-switch'></a></span>
+<span class='span-switches' title='_(Mount Remote Share Read only)_.'><a><input type='checkbox' class='readonly-switch'></a></span>
+<span class='span-switches' title='_(Mount Remote SMB or NFS Share when Array is Started)_.'><a><input type='checkbox' class='automount-switch'></a></span>
+<?endif;?>
+
+<?if ($iso_device):?>
+<span class='span-switches' title='_(Mount ISO File when Array is Started)_.'><a><input type='checkbox' class='automount-switch'></a></span>
+<?elseif ($fstype != "zvol"):?>
+<span class='span-switches' title='_(Share Device with SMB and NFS)_.'><a><input type='checkbox' name='share-switch' class='share-switch' info='<?=$info?>'></a></span>
+<?endif;?>
+
+<?if (($disk_device) && ($show_device_switches) && ($fstype != "zvol")):?>
+<span class='span-switches' title='_(Show all partitions on this device by default)_.'><a><input type='checkbox' name='partitions' class='partitions-switch'></a></span>
+<?endif;?>
+</div>
+
+<?if ((! $shares_enabled) && (! $iso_device) && ($fstype != "zvol")):?>
+<p style='font-weight:bold'>_(Note: Enable SMB Sharing or NFS Export in Unassigned Devices Settings to share this device)_.</p>
+<?endif;?>
+
+:ud_edit_script_device_settings_plug:
+> Select the options for this device and mount point.
+:end
+
+<?if (($show_device_switches) && ($fstype != "zvol") && ($disk_device) && ($info) && (! $mounted) && (! $is_preclearing) && (! is_pass_through($ud_device)) && ($host) && ($connected)):?>
+<button type="button" id="detach-button" title='_(Detach This Disk)_.' onclick='detach_disk("<?=$device;?>");'>_(Detach)_</button>
+
+:ud_edit_script_detach_plug:
+> Click **Detach** to detach the device.  The device will then show in Historical Devices and can be Attached from the device settings there.
+:end
+<?endif;?>
+<?if ($disk_device && (! $info) && ($host) && (! $connected)):?>
+<button type="button" id="attach-button" title='_(Attach This Disk)_.' onclick='attach_disk("<?=$ud_device;?>");'>_(Attach)_</button>
+
+:ud_edit_script_attach_plug:
+> Click **Attach** to attach a device that has been detached.  This will act like the device was just installed and will auto mount if 'Auto Mount' is on.  It will take a while for the device to show up in UD.
+:end
+<?endif;?>
+<?if (($device_script_running) || ($user_script_running)):?>
+<button type="button" id="abort-button" title='_(Abort Device and User Scripts)_.' onclick='abort_script("<?=$file;?>", "<?=$user_file;?>", "<?=$mount_point;?>");'>_(Abort)_</button>
+
+:ud_edit_script_abort_plug:
+> Click **Abort** to abort the device script, user script, and kill all processes running on the mount point.
+:end
+<?endif;?>
+
+<form markdown="1" method="POST" action="/update.php" target="progressFrame">
+
+<?if (($disk_setting) && ($fstype != "zvol")):?>
+_(Disk Name)_:
+: <input type="text" name="#name" class="narrow" style="width:8%" maxlength="8" value="<?=htmlspecialchars($name);?>">
+<?endif;?>
+
+<?if (($disk_setting) && ($fstype != "zvol")):?>
+:ud_disk_name_plug:
+> Enter the alias name for this device.  This is the name you want to use to refer to this drive.  Leave the name blank and the 'devX' will be assigned.
+>
+> **Name:** 8 characters max, spaces converted to '_', minimal special characters allowed, name is case sensitive.
+>
+> **Note:** Cannot contain "dev" as the first characters.  This is reserved for the 'devX' devices.
+:end
+<?endif;?>
+
+<?if (($disk_setting) && ($fstype == "apfs") && (! $mounted)):?>
+_(APFS Volume)_:
+: <input type="text" name="#volume" class="narrow" style="width:2%" maxlength="1" value="<?=htmlspecialchars($volume);?>" placeholder="0">
+<?endif;?>
+
+<?if (($fstype == "apfs") && (! $mounted)):?>
+:ud_apfs_volume_plug:
+> Enter the volume to mount on this APFS partition.
+:end
+<?endif;?>
+
+<?if (($disk_setting) && ($fstype == "ntfs") && ($ntfs3_driver_loaded) && (! $mounted)):?>
+_(Use the NTFS3 Driver)_?
+: <select name="#ntfs3_driver" size="1">
+	<?=mk_option($ntfs3_driver, "no", "_(No)_");?>
+	<?=mk_option($ntfs3_driver, "yes", "_(Yes)_");?>
+	</select>
+<?endif;?>
+
+<?if (($disk_setting) && ($fstype == "ntfs") && ($ntfs3_driver_loaded) && (! $mounted)):?>
+:ntfs3_driver_plug:
+> Select 'Yes' to enable the built in NTFS3 driver module for mounting this disk.  The NTFS3 driver module can be faster than the ntfs-3g driver, but may not support all the features of the NTFS file system.
+:end
+<?endif;?>
+
+<?if (($disk_setting) && (($fstype == "btrfs") || ($fstype == "zfs")) && (! $mounted)):?>
+_(Mount with compress option)_?
+: <select name="#compress_option" size="1">
+	<?=mk_option($compress_option, "", "_(No)_");?>
+<?if ($fstype == "btrfs"):?>
+	<?=mk_option($compress_option, "zlib", "Yes");?>
+<?else:?>
+	<?=mk_option($compress_option, "lz4", "Yes");?>
+<?endif;?>
+	</select>
+<?endif;?>
+
+<?if (($disk_setting) && (($fstype == "btrfs") || ($fstype == "zfs")) && (! $mounted)):?>
+:compress_option_plug:
+> Select 'Yes' to mount a BTRFS or ZFS disk with the compress option.  Compression for BTRFS is 'zlib' and for ZFS is 'lz4'.
+:end
+<?endif;?>
+
+
+<?if (($samba_device) && ($protocol == "SMB")):?>
+_(Encrypt CIFS Mount)_?
+: <select name="#enable_encrypt" size="1">
+	<?=mk_option($enable_encrypt, "no", "_(No)_");?>
+	<?=mk_option($enable_encrypt, "yes", "_(Yes)_");?>
+	</select>
+<?endif;?>
+
+<?if (($samba_device) && ($protocol == "SMB")):?>
+:ud_encrypt_connection_plug:
+> Set to **Yes** to encrypt the CIFS mount.  This is best for off-site mounts because of the overhead of encryption.
+:end
+<?endif;?>
+
+<?if ((($disk_setting) && ($fstype != "zvol")) || (($samba_device) && ($protocol == "SMB"))):?>
+<input type="submit" value="_(Apply)_">
+<?endif;?>
+<input type="button" value="_(Done)_" onclick="done()">
+</form>
+
+<form markdown="1" method="POST" action="/update.php" target="progressFrame" onsubmit="return cleanUpFileInput()">
+<input type="hidden" name="#include" value="/webGui/include/update.file.php">
+<input type="hidden" name="#raw_file" value="true">
+
+<?if ($fstype != "zvol"):?>
+_(Device Script)_:
+: <input type="text" title='_(Enter Device Script File Name)_.' name="#file" id="fileInput" style="width:46%;"  <?=(!$script_disabled ? 'onclick="openFileBrowserDevice(this, \''.UD_FLASH_PATH.'\', \'sh\');"' : 'readonly');?> autocomplete="off" value="<?=htmlspecialchars($file);?>" placeholder="_(Click here to select a Script File or 'Default' button for a Default Script)_">
+
+:ud_edit_script_choose_name_plug:
+> This is the Script File that runs when the device is mounted. Choose your Script File name from the file selection dropdown, or enter your desired script.  This cannot be changed if the device is mounted.
+:end
+
+_(Enable Device Script)_?
+: <select name="#enable_script" size="1" <?=$script_disabled;?>>
+	<?=mk_option($enable_script, "yes", "_(Yes)_");?>
+	<?=mk_option($enable_script, "no", "_(No)_");?>
+	</select>
+
+:ud_edit_script_enable_script_plug:
+> Set to **Yes** to have the Device Script run on any UD event.
+:end
+
+_(Run Device Script File in the background)_?
+: <select name="#background" size="1" <?=$script_disabled;?>>
+	<?=mk_option($background, "yes", "_(Yes)_");?>
+	<?=mk_option($background, "no", "_(No)_");?>
+	</select>
+
+:ud_edit_script_run_background_plug:
+> Set to **Yes** to have the Device Script run as a background task.  This can keep the Unassigned Devices UI from hanging when the script is run from the UI.
+:end
+
+<? if (! $iso_device):?>
+_(User Script)_:
+: <input type="text" title='_(Enter the User Script File Name)_.' name="#user_file" style="width:46%;" onclick="openFileBrowserUser(this, '<?=USER_SCRIPTS_PATH;?>', '', false);" autocomplete="off" placeholder="_(Enter the User Script that will be using this device)_" value="<?=htmlspecialchars($user_file);?>" <?=$user_disabled;?>>
+<?endif;?>
+
+<? if (! $iso_device):?>
+:ud_edit_user_script_choose_name_plug:
+> If you have the User Scripts plugin installed, you can have Unassigned Devices show the running status of the User Script that will be using this device.  This field will only be enabled when a Device Script File exists.
+:end
+<?endif;?>
+
+###_(Device Script content)_:
+
+<textarea spellcheck="false" cols="80" rows="22" name="text" id="textInput" title='_(Enter and Edit the Device Script that runs when a udev or operator event occurs)_.' style="width:80%;"><?=$text;?></textarea>
+
+<?if ((! $device_script_running) && (! $user_script_running)):?>
+<?if (! is_file($file)):?>
+<button type="button" id='default-button' title='_(Load the default Device Script)_.' onclick="setDefault(this.form)">_(Default)_</button>
+<button type="button" id='clear-button' title='_(Clear the Device Script)_.' onclick="clearDefault(this.form)" disabled>_(Clear)_</button>
+<input type="submit" id='save-button' title='_(Save your Device Script)_.' value='_(Save)_' disabled/>
+<?else:?>
+<button type="button" id='delete-button' title='_(Delete Device Script File)_.' onclick='rmfile();' <?=$script_disabled;?>>_(Delete)_</button>
+<input type="submit" id='apply-button' title='_(Save your Device Script File changes)_.' value='_(Apply)_'/>
+<?endif;?>
+<?endif;?>
+<input type="button" value="_(Done)_" onclick="done()"/>
+
+:ud_edit_script_buttons_plug:
+> Click **Default** to initialize the edit box with a default Device Script. You still need to click **Save** in order to commit the change.
+>
+> Click **Save** to save your Device Script file.
+>
+> Click **Delete** to delete the Device Script file.
+>
+> Click **Reset** to undo any changes you make (before Saving).
+>
+> Click **Apply** to commit the current edits.
+>
+> Click **Done** to exit this page.
+:end
+<?endif;?>
+</form>
+
+<script>
+	/* Initialize PHP variables passed to JavaScript */
+	const udPluginPath = <?=UD_PLUGIN_PATH;?>;
+
+	/* URL for Unassigned Devices PHP file. */
+	const UDURL		= '/plugins/' + udPluginPath + '/include/UnassignedDevices.php';
+
+	/* Start the Unraid spinner. */
+	unraidWaveTimer = setTimeout(function(){
+		$('div.spinner.fixed').show();
+	}, 500);
+
+	/* Wait for the page to load. */
+	window.onload = function() {
+		/* Clear the spinner timer. */
+		clearTimeout(unraidWaveTimer);
+
+		/* Stop spinner after the page has loaded. */
+		$('div.spinner.fixed').hide();
+	};
+
+	/* Clean up the file name before submitting it. */
+	function cleanUpFileInput() {
+		/* Remove special characters from the file name */
+		const fileInput = document.getElementById('fileInput');
+		if (fileInput) {
+			/* Define special characters to be removed */
+			const specialChars = /['"?\#&!<>\|+@*]/g;
+
+			/* Replace special characters in the file name */
+			fileInput.value = fileInput.value.replace(specialChars, '');
+		}
+
+		/* Allow form submission */
+		return true;
+	}
+
+<? if (($disk_device) && (! $mounted)):?>
+	/* Passthrough switch. */
+	$('.passthrough-switch').switchButton({
+		labels_placement: "left",
+		on_label: "<?=_('Passed Through');?>",
+		off_label: "<?=_('Passed Through');?>",
+		checked: "<?=$pass_through;?>"
+	});
+	$('.passthrough-switch').change(function() {
+		let switchElement = $(this);
+		$.post(UDURL, {
+			action: "toggle_pass_through",
+			serial: "<?=$ud_device;?>",
+			part: "<?=$zvol;?>",
+			status: switchElement.is(":checked")
+		}, function(data) {
+			switchElement.prop("checked", data.result);
+			location.reload();
+		}, 'json');
+	});
+<?endif;?>
+	/* Disable mount switch. */
+	$('.disable-mount-switch').switchButton({
+		labels_placement: "left",
+		on_label: "<?=_('Disable Mount Button');?>",
+		off_label: "<?=_('Disable Mount Button');?>",
+		checked: "<?=$disable_mount;?>"
+	});
+	$('.disable-mount-switch').change(function() {
+		let switchElement = $(this);
+		$.post(UDURL, {
+			action: "<?=$disable_action?>",
+			device: "<?=$ud_device;?>",
+			part: "<?=$zvol;?>",
+			status: switchElement.is(":checked")
+		}, function(data) {
+			switchElement.prop("checked", data.result);
+		}, 'json');
+	});
+
+	/* Read only switch. */
+	$('.readonly-switch').switchButton({
+		labels_placement: "left",
+		on_label: "<?=_('Read Only');?>",
+		off_label: "<?=_('Read Only');?>",
+		checked: "<?=$read_only;?>"
+	});
+	$('.readonly-switch').change(function() {
+		let switchElement = $(this);
+		$.post(UDURL, {
+			action: "<?=$readonly_action?>",
+			serial: "<?=$ud_device;?>",
+			part: "<?=$zvol;?>",
+			status: switchElement.is(":checked")
+		}, function(data) {
+			switchElement.prop("checked", data.result);
+		}, 'json');
+	});
+
+	/* Auto mount switch. */
+	$('.automount-switch').switchButton({
+		labels_placement: "left",
+		on_label: "<?=_('Automount');?>",
+		off_label: "<?=_('Automount');?>",
+		checked: "<?=$automount;?>"
+	});
+	$('.automount-switch').change(function() {
+		let switchElement = $(this);
+		$.post(UDURL, {
+			action: "<?=$automount_action?>",
+			device: "<?=$ud_device;?>",
+			status: switchElement.is(":checked")
+		}, function(data) {
+			switchElement.prop("checked", data.result);
+		}, 'json');
+	});
+
+<?if ($info):?>
+	/* Share switch. */
+	$('.share-switch').switchButton({
+		labels_placement: "left",
+		on_label: "<?=_('Share');?>",
+		off_label: "<?=_('Share');?>",
+		checked: "<?=$share;?>"
+	});
+	$('.share-switch').change(function() {
+		let switchElement = $(this);
+		$.post(UDURL, {
+			action: "<?=$share_action;?>",
+			info: switchElement.attr("info"),
+			status: switchElement.is(":checked")
+		}, function(data) {
+			switchElement.prop("checked", data.result);
+		}, 'json');
+	});
+<?else:?>
+	/* Share switch. */
+	$('.share-switch').switchButton({
+		labels_placement: "left",
+		on_label: "<?=_('Share');?>",
+		off_label: "<?=_('Share');?>",
+		checked: "<?=$share;?>"
+	});
+	$('.share-switch').change(function() {
+		let switchElement = $(this);
+		$.post(UDURL, {
+			action: "<?=$share_action;?>",
+			serial: "<?=$ud_device;?>",
+			part: "<?=$partition;?>",
+			status: switchElement.is(":checked")
+		}, function(data) {
+			switchElement.prop("checked", data.result);
+		}, 'json');
+	});
+<?endif;?>
+
+	/* Show partitions switch. */
+	$('.partitions-switch').switchButton({
+		labels_placement: "left",
+		on_label: "<?=_('Show Partitions');?>",
+		off_label: "<?=_('Show Partitions');?>",
+		checked: "<?=$show_partitions;?>"
+	});
+	$('.partitions-switch').change(function() {
+		let switchElement = $(this);
+		$.post(UDURL, {
+			action: "show_partitions",
+			serial: "<?=$ud_device;?>",
+			status: switchElement.is(":checked")
+		}, function(data) {
+			switchElement.prop("checked", data.result);
+		}, 'json');
+	});
+
+	/* Precess saving changes to the UD config files. */
+	$("form").submit(function(event) {
+		let requests = [];
+
+		<?php if ($disk_device): ?>
+			requests.push($.ajax({
+				url: UDURL,
+				type: 'POST',
+				async: false,
+				data: {
+					action: 'set_command',
+					serial: '<?=$ud_device;?>',
+					part: '<?=$partition;?>',
+					command: encodeURIComponent($("input[name='#file']").val()),
+					user_command: encodeURIComponent($("input[name='#user_file']").val())
+				}
+			}));
+
+			<?php if ($disk_setting): ?>
+			requests.push($.ajax({
+				url: UDURL,
+				type: 'POST',
+				async: false,
+				data: {
+					action: "set_name",
+					serial: "<?=$ud_device;?>",
+					device: "<?=$device;?>",
+					name: encodeURIComponent($("input[name='#name']").val())
+				}
+			}));
+			<?php endif; ?>
+
+			requests.push($.ajax({
+				url: UDURL,
+				type: 'POST',
+				async: false,
+				data: {
+					action: "<?=$script_action;?>",
+					device: "<?=$ud_device;?>",
+					part: "<?=$partition;?>",
+					status: $("select[name='#enable_script']").val()
+				}
+			}));
+
+			requests.push($.ajax({
+				url: UDURL,
+				type: 'POST',
+				async: false,
+				data: {
+					action: "<?=$background_action;?>",
+					device: "<?=$ud_device;?>",
+					part: "<?=$partition;?>",
+					status: $("select[name='#background']").val()
+				}
+			}));
+
+			<?php if (($disk_setting) && ($fstype == "apfs")): ?>
+			requests.push($.ajax({
+				url: UDURL,
+				type: 'POST',
+				async: false,
+				data: {
+					action: "set_volume",
+					serial: "<?=$ud_device;?>",
+					part: "<?=$partition;?>",
+					volume: encodeURIComponent($("input[name='#volume']").val())
+				}
+			}));
+			<?php endif; ?>
+
+			<?php if (($disk_setting) && ($fstype == "ntfs") && ($ntfs3_driver_loaded)): ?>
+			requests.push($.ajax({
+				url: UDURL,
+				type: 'POST',
+				async: false,
+				data: {
+					action: "set_ntfs3_driver",
+					serial: "<?=$ud_device;?>",
+					part: "<?=$partition;?>",
+					ntfs3_driver: $("select[name='#ntfs3_driver']").val()
+				}
+			}));
+			<?php endif; ?>
+
+			<?if (($disk_setting) && (($fstype == "btrfs") || ($fstype == "zfs")) && (! $mounted)):?>
+			requests.push($.ajax({
+				url: UDURL,
+				type: 'POST',
+				async: false,
+				data: {
+					action: "set_compress_option",
+					serial: "<?=$ud_device;?>",
+					part: "<?=$partition;?>",
+					compress_option: $("select[name='#compress_option']").val()
+				}
+			}));
+			<?php endif; ?>
+
+		<?php else: ?>
+
+			<?php if ($samba_device): ?>
+				requests.push($.ajax({
+					url: UDURL,
+					type: 'POST',
+					async: false,
+					data: {
+						action: 'set_samba_command',
+						device: '<?= $device; ?>',
+						command: encodeURIComponent($("input[name='#file']").val()),
+						user_command: encodeURIComponent($("input[name='#user_file']").val())
+					}
+				}));
+
+				<?php if ($protocol == "SMB"): ?>
+				requests.push($.ajax({
+					url: UDURL,
+					type: 'POST',
+					async: false,
+					data: {
+						action: "samba_enable_encryption",
+						device: "<?=$ud_device;?>",
+						status: $("select[name='#enable_encrypt']").val()
+					}
+				}));
+				<?php endif; ?>
+
+			<?php endif; ?>
+
+			<?php if ($iso_device): ?>
+				requests.push($.ajax({
+					url: UDURL,
+					type: 'POST',
+					async: false,
+					data: {
+						action: 'set_iso_command',
+						device: '<?= $device; ?>',
+						command: encodeURIComponent($("input[name='#file']").val())
+					}
+				}));
+
+			<?php endif; ?>
+
+			requests.push($.ajax({
+				url: UDURL,
+				type: 'POST',
+				async: false,
+				data: {
+					action: "<?=$script_action;?>",
+					device: "<?=$ud_device;?>",
+					part: "<?=$partition;?>",
+					status: $("select[name='#enable_script']").val()
+				}
+			}));
+
+			requests.push($.ajax({
+				url: UDURL,
+				type: 'POST',
+				async: false,
+				data: {
+					action: "<?=$background_action;?>",
+					device: "<?=$ud_device;?>",
+					status: $("select[name='#background']").val()
+				}
+			}));
+
+		<?php endif; ?>
+	});
+
+	/*
+		Function to set default values for form elements.
+		Parameters:
+			- form: The form element
+	*/
+	function setDefault(form) {
+		/* Set the default values. */
+		form.elements['text'].value = <?= json_encode($default_text); ?>;
+		form.elements['#file'].value = <?= json_encode($default_file); ?>;
+
+		/* Set up the buttons when a file has been loaded. */
+		setFileButtons(form);
+	}
+
+	/* Set up the buttons after a file has been loaded. */
+	function setFileButtons(form) {
+		/* Enable the 'Save' button. */
+		const saveButton = document.getElementById('save-button');
+
+		/* Check if the button element exists before attempting to enable it */
+		if (saveButton) {
+			/* Disable the button */
+			saveButton.disabled = false;
+		}
+
+		/* Enable the 'Clear' button. */
+		const clearButton = document.getElementById('clear-button');
+
+		/* Check if the button element exists before attempting to enable it */
+		if (clearButton) {
+			/* Disable the button */
+			clearButton.disabled = false;
+		}
+
+		/* Disable the 'Default' button. */
+		const defaultButton = document.getElementById('default-button');
+
+		/* Check if the button element exists before attempting to disable it */
+		if (defaultButton) {
+			/* Disable the button */
+			defaultButton.disabled = true;
+		}
+
+		/* Trigger a change event. */
+		form.dispatchEvent(new Event('change'));
+	}
+
+	/*
+		Function to clear default values for form elements.
+		Parameters:
+			- form: The form element
+	*/
+	function clearDefault(form) {
+		/* Set the default values to empty. */
+		form.elements['text'].value = "";
+		form.elements['#file'].value = "";
+
+		/* Clear file buttons after the file is cleared. */
+		clearFileButtons(form);
+	}
+
+		/* Clear file buttons after the file is cleared. */
+	function clearFileButtons(form) {
+		/* Disable the 'Save' button. */
+		const saveButton = document.getElementById('save-button');
+
+		/* Check if the button element exists before attempting to disable it */
+		if (saveButton) {
+			/* Disable the button */
+			saveButton.disabled = true;
+		}
+
+		/* Disable the 'Clear' button. */
+		const clearButton = document.getElementById('clear-button');
+
+		/* Check if the button element exists before attempting to disable it */
+		if (clearButton) {
+			/* Disable the button */
+			clearButton.disabled = true;
+		}
+
+		/* Enable the 'Default' button. */
+		const defaultButton = document.getElementById('default-button');
+
+		/* Check if the button element exists before attempting to enable it */
+		if (defaultButton) {
+			/* Disable the button */
+			defaultButton.disabled = false;
+		}
+
+		/* Trigger a change event. */
+		form.dispatchEvent(new Event('change'));
+	}
+
+	/*
+		Function to open a file browser for device script files.
+		Parameters:
+			- el: Element selector
+			- root: Root directory
+			- filter: Optional filter flag
+			- on_folders: Flag to handle folders
+			- on_files: Flag to handle files
+	*/
+	function openFileBrowserDevice(el, root, filter = true, onFolders = true, onFiles = true) {
+		/* Set a default filter if none specified */
+		if (!filter && !onFiles) {
+			filter = 'HIDE_FILES_FILTER';
+		}
+
+		const inputElement = $(el);
+
+		/* Skip if fileTree is already open. */
+		if (!inputElement.next().hasClass('fileTree')) {
+			/* Create a random id. */
+			const randomId = 'id-' + crypto.randomUUID();
+
+			/* Add a new span and load fileTree. */
+			inputElement.after("<span id='fileTree" + randomId + "' class='textarea fileTree'></span>");
+			const fileTreeElement = $('#fileTree' + randomId);
+
+			fileTreeElement.fileTree(
+				{
+					root: root,
+					top: root,
+					filter: filter,
+					allowBrowsing: true
+				},
+				function (file) {
+					if (onFiles) {
+						inputElement.val(file);
+						fileTreeElement.slideUp('fast', function () {
+							fileTreeElement.remove();
+
+							/* If a file was selected, then setup buttons and load the file. */
+							if (file != "") {
+								/* Disable the delete button. The newly selected file cannot be deleted. */
+								const deleteButton = document.getElementById('delete-button');
+
+								/* Check if the button element exists before attempting to disable it */
+								if (deleteButton) {
+									/* Disable the button */
+									deleteButton.disabled = true;
+								}
+
+								/* Set up the file buttons. */
+								setFileButtons(el.form);
+
+								/* Check if the file field has a value before executing the post request */
+								if (inputElement.val() !== "") {
+									/* Get the script from the file. */
+									$.post(UDURL, {
+										action: "get_device_script",
+										file: encodeURIComponent(inputElement.val()),
+									}, function(data) {
+										el.form.elements['text'].value = JSON.parse(data);
+									});
+								}
+							}
+
+							/* Trigger the 'change' event outside the condition */
+							inputElement.trigger('change');
+						});
+					}
+				},
+				function (folder) {
+					if (onFolders) {
+						inputElement.val(folder);
+						fileTreeElement.slideUp('fast', function () {
+							fileTreeElement.remove();
+							/* Trigger the 'change' event outside the condition */
+							inputElement.trigger('change');
+						});
+					}
+				}
+			);
+
+			/* Format fileTree according to parent position, height, and width. */
+			fileTreeElement.css({
+				'left': inputElement.position().left,
+				'top': (inputElement.position().top + inputElement.outerHeight()),
+				'width': (inputElement.width())
+			});
+
+			/* Close if click elsewhere. */
+			$(document).mouseup(function (e) {
+				if (!fileTreeElement.is(e.target) && fileTreeElement.has(e.target).length === 0) {
+					fileTreeElement.slideUp('fast', function () {
+						fileTreeElement.remove();
+					});
+				}
+			});
+
+			/* Close if parent changed. */
+			inputElement.on('keydown', function () {
+				fileTreeElement.slideUp('fast', function () {
+					fileTreeElement.remove();
+				});
+			});
+
+			/* Open fileTree. */
+			fileTreeElement.slideDown('fast');
+		} else {
+			/* FileTree already open. */
+			return null;
+		}
+	}
+
+	/*
+		Function to open a file browser for User Script file.
+		Parameters:
+			- el: Element selector
+			- root: Root directory
+			- filter: Optional filter flag
+			- on_folders: Flag to handle folders
+			- on_files: Flag to handle files
+	*/
+	function openFileBrowserUser(el, root, filter = true, onFolders = true, onFiles = true) {
+		/* Set a default filter if none specified */
+		if (!filter && !onFiles) {
+			filter = 'HIDE_FILES_FILTER';
+		}
+
+		const inputElement = $(el);
+
+		/* Skip if fileTree is already open. */
+		if (!inputElement.next().hasClass('fileTree')) {
+			/* Create a random id. */
+			const randomId = Math.floor((Math.random() * 1000) + 1);
+
+			/* Add a new span and load fileTree. */
+			inputElement.after("<span id='fileTree" + randomId + "' class='textarea fileTree'></span>");
+			const fileTreeElement = $('#fileTree' + randomId);
+
+			fileTreeElement.fileTree(
+				{
+					root: root,
+					top: root,
+					filter: filter,
+					allowBrowsing: true
+				},
+				function (file) {
+					if (onFiles) {
+						inputElement.val(file);
+						fileTreeElement.slideUp('fast', function () {
+							fileTreeElement.remove();
+						});
+					}
+					inputElement.trigger('change');
+				},
+				function (folder) {
+					if (onFolders) {
+						inputElement.val(folder);
+						fileTreeElement.slideUp('fast', function () {
+							fileTreeElement.remove();
+						});
+					}
+					inputElement.trigger('change');
+				}
+			);
+
+			/* Format fileTree according to parent position, height, and width. */
+			fileTreeElement.css({
+				'left': inputElement.position().left,
+				'top': (inputElement.position().top + inputElement.outerHeight()),
+				'width': (inputElement.width())
+			});
+
+			/* Close if click elsewhere. */
+			$(document).mouseup(function (e) {
+				if (!fileTreeElement.is(e.target) && fileTreeElement.has(e.target).length === 0) {
+					fileTreeElement.slideUp('fast', function () {
+						fileTreeElement.remove();
+					});
+				}
+			});
+
+			/* Close if parent changed. */
+			inputElement.on('keydown', function () {
+				fileTreeElement.slideUp('fast', function () {
+					fileTreeElement.remove();
+				});
+			});
+
+			/* Open fileTree. */
+			fileTreeElement.slideDown('fast');
+		} else {
+			/* FileTree already open */
+			return null;
+		}
+	}
+
+	/* Remove a device script file. */
+	function rmfile() {
+		$.post("/update.php", {
+			"#command": "/plugins/unassigned.devices/scripts/rm",
+			"#arg[1]": $("input[name='#file']").val()
+		}).done(function () {
+			location.reload();
+		});
+	}
+
+	/* Detach a disk device. */
+	function detach_disk(device) {
+		$("button[id='detach-button']").prop("disabled", true);
+		$("button[id='detach-button']").html("<i class='fa fa-spinner fa-spin'></i> <?=_('Detaching');?>");
+		$.post("/update.php", {
+			"#command": "/plugins/unassigned.devices/scripts/rc.unassigned",
+			"#arg[1]": "detach",
+			"#arg[2]": device
+		}).done(function () {
+			location.reload();
+		});
+	}
+
+	/* Attach a disk device. */
+	function attach_disk(serial) {
+		$("button[id='attach-button']").prop("disabled", true);
+		$("button[id='attach-button']").html("<i class='fa fa-spinner fa-spin'></i> <?=_('Attaching');?>");
+		$.post("/update.php", {
+			"#command": "/plugins/unassigned.devices/scripts/rc.unassigned",
+			"#arg[1]": "attach",
+			"#arg[2]": serial
+		}).done(function () {
+			location.reload();
+		});
+	}
+
+	/* Abort a running device script. */
+	function abort_script(device_script, user_script, mount_point) {
+		$("button[id='abort-button']").prop("disabled", true);
+		$("button[id='abort-button']").html("<i class='fa fa-spinner fa-spin'></i> <?=_('Aborting');?>");
+		$.post("/update.php", {
+			"#command": "/plugins/unassigned.devices/scripts/rc.unassigned",
+			"#arg[1]": "abort",
+			"#arg[2]": device_script,
+			"#arg[3]": user_script,
+			"#arg[4]": mount_point
+		}).done(function () {
+			location.reload();
+		});
+	}
+</script>

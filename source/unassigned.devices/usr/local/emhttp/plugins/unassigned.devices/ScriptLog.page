@@ -1,0 +1,82 @@
+Title="Script Log"
+---
+<?php
+/* Copyright 2015, Lime Technology
+ * Copyright 2015, Bergware International.
+ * Copyright 2016-2025, Dan Landon
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License version 2,
+ * as published by the Free Software Foundation.
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ */
+
+/* Load the UD library file if it is not already loaded. */
+require_once("plugins/unassigned.devices/include/lib.php");
+
+if (isset($_GET['s'])) {
+	$serial = htmlspecialchars(urldecode($_GET['s']));
+	$partition = htmlspecialchars(urldecode($_GET['p']));
+	$file = get_config($serial,"command.{$partition}");
+} else if (isset($_GET['d'])) {
+	$device = htmlspecialchars(urldecode($_GET['d']));
+	$file = get_samba_config($device,"command");
+} else if (isset($_GET['i'])) {
+	$device = htmlspecialchars(urldecode($_GET['i']));
+	$file = get_iso_config($device,"command");
+}
+
+$zip_file	= "-".basename($file, ".sh")."-";
+$zip		= str_replace(' ','_',strtolower($var['NAME'])).$zip_file.date('Ymd-Hi').".zip";
+$file		= $paths['device_log'].basename($file, ".sh").".log";
+$cmd		= "cat ".$file." | tail -n 1000 2>/dev/null";
+echo $display['resize'] ? "<pre class='up' style='display:none'>" : "<pre class='up'>";
+echo `{$cmd}`;
+echo "</pre>";
+?>
+<script>
+	/* Function to clean up after downloading */
+	function cleanUp() {
+		/* Check if the document has focus */
+		if (document.hasFocus()) {
+			/* Set the button text and enable it */
+			$("button[id='download']").prop("disabled", false);
+			$("button[id='download']").html("<?=_('Download');?>");
+
+			/* Send a POST request to delete the downloaded file */
+			$.post('/webGui/include/Download.php', { cmd: 'delete', file: '<?=$zip;?>' });
+		} else {
+			/* If the document doesn't have focus, retry cleanup after 4000 milliseconds (4 seconds) */
+			setTimeout(cleanUp, 4000);
+		}
+	}
+
+	/* Function to initiate the download process */
+	function getlog() {
+		/* Set the button text to indicate downloading and disable it */
+		$("button[id='download']").prop("disabled", true);
+		$("button[id='download']").html("<i class='fa fa-spinner fa-spin'></i> <?=_('Downloading');?>");
+
+		/* Send a POST request to save the file, then initiate cleanup after 4000 milliseconds (4 seconds) */
+		$.post('/webGui/include/Download.php', { cmd: 'save', source: '<?=$file;?>', file: '<?=$zip;?>' }, function (zip) {
+			location = zip; /* Redirect to the downloaded file */
+			setTimeout(cleanUp, 4000); /* Initiate cleanup after 4 seconds */
+		});
+	}
+
+	$(function() {
+		<?if ($display['resize']):?>
+			$('pre.up').css('height',Math.max(window.innerHeight-280,370)).show();
+		<?endif;?>
+	});
+</script>
+
+<?if ((is_file($file)) && (filesize($file) != 0)):?>
+	<button type="button" id='download' onclick="getlog()">_(Download)_</button>
+<?else:?>
+	<button type="button" disabled>_(Download)_</button>
+<?endif;?>
+<input type="button" value=_(Refresh)_ onclick="refresh()">
+<input type="button" value=_(Done)_ onclick="done()">

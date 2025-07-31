@@ -1,0 +1,86 @@
+Menu="UnassignedDevicesSettings:6"
+Title="Upgrade ZFS Pool"
+Tag="hdd-o"
+Cond="version_compare(parse_ini_file('/etc/unraid-version')['version'], '6.11.9', '>')"
+---
+<?php
+/* Copyright 2015, Guilherme Jardim
+ * Copyright 2016-2025, Dan Landon
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License version 2,
+ * as published by the Free Software Foundation.
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ */
+
+/* Load the UD library file if it is not already loaded. */
+require_once("plugins/unassigned.devices/include/lib.php");
+
+/* Get the unassigned_devices config file. */
+$UD_cfg				= $ud_config;
+
+/* Temporary config value. */
+$UD_cfg['Config']['zfs_upgrade']	= $UD_cfg['Config']['zfs_upgrade'] ?? "";
+
+/* Get array of ZFS devices that can be upgraded. */
+$zfs_devices = [];
+
+foreach (get_all_disks_info() as $d) {
+	/* If the disk dropped out of the array, skip it. */
+	if (isset($d['array_disk']) && ($d['array_disk'])) {
+		continue;
+	}
+
+	if (isset($d['partitions'][0]['fstype'])) {
+		/* Get an array of devices that are candidates for zfs upgrade. */
+		if ($d['partitions'][0]['fstype'] == "crypto_LUKS") {
+			/* Find the file system type on the luks device to use the proper mount options. */
+			$file_system	= part_fs_type($d['partitions'][0]['device']);
+		} else {
+			$file_system 	= $d['partitions'][0]['fstype'];
+		}		
+
+		/* Collect all the candidates for a zfs upgrade. */
+		if (($file_system == "zfs") && ($d['partitions'][0]['mounted'])) {
+			/* See if the device needs an upgrade. */
+			$pool_name	= $d['partitions'][0]['pool_name'];
+			if (($pool_name) && (! is_upgraded_ZFS_pool($pool_name))) {
+				$a = [];
+				$a['device']		= $d['device'];
+				$a['serial']		= $d['serial'];
+				$a['pool_name']		= $pool_name;
+				$zfs_devices[]		= $a;
+			}
+		}
+	}
+}
+?>
+
+<table class="tablesorter shift ups">
+<thead><tr><th>_(Upgrade ZFS Pool)_</th></tr></thead>
+</table>
+
+<form markdown="1" name="zfs_disk_upgrade" method="POST" action="/update.php" target="progressFrame">
+<input type="hidden" name="#section" value="Config">
+<input type="hidden" name="#file" value="<?=UD_CONFIG_FILE;?>">
+<input type="hidden" name="#command" value="<?=UD_SETTINGS_SCRIPT;?>">
+<input type="hidden" name="#arg[1]" value="zfs_upgrade">
+
+_(Select Disk)_:
+: <select name="zfs_upgrade" size="1">
+	<?foreach ($zfs_devices as $d) {?>
+		<?=mk_option($UD_cfg["Config"]["zfs_upgrade"], ("(".htmlspecialchars($d['pool_name']).") ".htmlspecialchars($d['serial'])), (htmlspecialchars($d['serial'])." (".htmlspecialchars(basename($d['device'])).")"));?>
+	<?}?>
+</select>
+
+:ud_settings_zfs_upgrade_plug:
+> Select the disk that you want to upgrade to the latest ZFS version. Drive must be mounted to upgrade the ZFS Pool.
+:end
+
+<p><span style='font-weight:bold;'>Note:</span> _(This operation cannot be reversed)_.  _(After upgrading, the disk may not be mountable in previous versions of Unraid)_.</p>
+
+&nbsp;
+: <span><input type="submit" value='_(Upgrade ZFS Pool)_' title='_(Upgrade ZFS on disk to the latest)_.' <?=count($zfs_devices) ? "" : "disabled";?>><input type="button" value="_(Done)_" onclick="done()"></span>
+</form>

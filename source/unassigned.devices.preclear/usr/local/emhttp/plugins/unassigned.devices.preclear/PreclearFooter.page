@@ -1,0 +1,53 @@
+Menu="Buttons:100"
+Link="nav-user"
+---
+<?php
+/* Copyright 2015-2020, Guilherme Jardim
+ * Copyright 2022-2025, Dan Landon
+ * Copyright 2025, Lime Technology
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License version 2,
+ * as published by the Free Software Foundation.
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ */
+
+/* Load the UD preclear library file if it is not already loaded. */
+require_once("plugins/unassigned.devices.preclear/include/lib.php");
+$unraid71 = version_compare($var['version']??"","7.0.9",">");
+$Preclear = new Preclear;
+?>
+
+<?=$Preclear->html();?>
+<script>
+	const pluginFooterPath = <?=PRECLEAR_PLUGIN_PATH;?>;
+
+	<?=$Preclear->Script();?>
+
+	if (typeof swal2 === "undefined") {
+		$('head').append( $('<link rel="stylesheet" />').attr('href', '<?autov("/plugins/".UNASSIGNED_PRECLEAR_PLUGIN."/assets/sweetalert2.css");?>') );
+		$.getScript( '/plugins/' + pluginFooterPath + '/assets/sweetalert2.js');
+	}
+
+	$(function()
+	{
+		<? if ($unraid71): ?>
+            footer = $("<span id='preclear-footer'></span>").insertBefore("div.footer-right > span#copyright").css("float","right").css("margin-right", "6px");
+		<? else: ?>
+			footer = $("<span id='preclear-footer'></span>").insertAfter("div#footer > span#copyright").css("float","right").css("margin-right", "6px");
+		<? endif; ?>
+		getPreclearContent();
+		if ( $('#usb_devices_list').length ) {
+			$("#usb_devices_list").arrive("span[id^=preclear_]",{onceOnly:false},function()
+			{
+				span = $(this);
+				id = span.attr('id').replace(/preclear_/g, '');
+				if ((PreclearData.status != null) && (id in PreclearData.status)) {
+					span.html("<i style='margin-left: -10px;' class='icon-preclear'></i><span style='margin-left: 4px;'></span>"+PreclearData.status[id].status);
+				}
+			});
+		}
+	});
+</script>

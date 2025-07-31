@@ -1,0 +1,266 @@
+Menu="DiskUtilities"
+Title="Preclear Disk"
+Icon="unlink"
+Tag="icon-preclear"
+---
+<?
+/* Copyright 2015-2020, Guilherme Jardim
+ * Copyright 2022-2025, Dan Landon
+ * Copyright 2025, Lime Technology
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License version 2,
+ * as published by the Free Software Foundation.
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ */
+
+/* Load the UD preclear library file if it is not already loaded. */
+require_once("plugins/unassigned.devices.preclear/include/lib.php");
+
+$Preclear			= new Preclear;
+$zipFile			= sprintf("log/%s-%s-%s.zip", str_replace(' ','_',strtoupper($var['NAME'])), UNASSIGNED_PRECLEAR_PLUGIN, date('Ymd-Hi') );
+
+/* Get the version of Unraid we are running. */
+$version = parse_ini_file("/etc/unraid-version");
+
+/* Adjustments for 6.12 GUI changes. */
+if (version_compare($version['version'], '6.12.0-beta5', '>')) {
+	$title_div		= "div.title";
+} else {
+	$title_div		= "div#title";
+}
+?>
+<? if (is_file("usr/local/emhttp/plugins/dynamix.docker.manager/styles/style-$theme.css") ):?>
+	<link rel="stylesheet" href="<?autov("/plugins/dynamix.docker.manager/styles/style-$theme.css")?>">
+<? endif; ?>
+<link rel="stylesheet" href="<?autov("/plugins/".UNASSIGNED_PRECLEAR_PLUGIN."/assets/style-$theme.css")?>">
+<link rel="stylesheet" href="<?autov("/plugins/".UNASSIGNED_PRECLEAR_PLUGIN."/assets/preclear.css")?>">
+
+<style>
+	.udbutton {
+		float:right;
+		margin-right:1rem;
+		margin-bottom:1rem;
+	}
+</style>
+
+<?=$Preclear->html();?>
+<table class='preclear'>
+	<thead>
+		<tr>
+		<td><?=_('Device')?></td>
+		<td><?=_('Identification')?></td>
+		<td><?=_('Temp')?>.</td>
+		<td><?=_('Size')?></td>
+		<td><?=_('Preclear Status')?></td>
+		</tr>
+	</thead>
+	<tbody id="preclear-table-body">
+		<tr>
+			<td colspan='5'>
+				<div class='spinner'></div>
+			</td>
+		</tr>
+	</tbody>
+</table>
+
+:preclear_general_help_plug:
+> The Unassigned Devices Preclear can be used to prepare disks for inclusion in the array, clear disks for disposal, and perform stress tests before disks are used in the array.
+>
+> Only disks that are not being used in the array and have no partitions with file systems will be listed as candidates for preclearing.
+>
+> When a disk is being precleared, you can follow the status on this page, on the Unassigned Devices page, or the preclear status icon in the footer of the Unraid web page.
+> 
+> There are multiple choices for preclearing:
+>
+> The **Enhanced** script authored by user **gfjardim** has the advantage that it supports the enhanced features like pause and resume preclearing.  It also has extensive logging.
+>
+> The **Docker** is the binhex Docker container that performs preclear.  The advantage of this is the preclearing is isolated in the Docker container.
+>
+> Preclear operations:
+>
+> + Clear Disk - The disk is cleared and the Unraid signature is written to the disk.  This will create an empty partition on the disk.
+> + Erase Disk - Erase the entire disk by writing all zeros.  The preclear signature is removed.
+> + Erase and Clear Disk - random patterns are written to the disk and then zeroes are written.  This is a good choice for a disk to be discarded to ensure all traces of files are removed.
+> + Verify Signature - The disk signature is checked.
+> + Verify Disk - The disk signature is checked and the disk is verified to be zeroed.
+> + Post-read Verify - Perform a post read verify to check the disk.
+> + Clear Signature - Remove the preclear signature from the disk.
+>
+> The text <em style='color:#00BE37;'>Precleared</em> next to the disk serial number indicates that the disk has a precleared signature.  This will only show when the disk is precleared and the Preclear Stats have been removed.
+:end
+
+<script>
+	/* Initialize PHP variables passed to JavaScript */
+	const zipFile = <?=json_encode($zipFile);?>;
+	const preclearPluginPath = <?=PRECLEAR_PLUGIN_PATH;?>;
+
+	/* Self-Executing Function to Encapsulate the Code */
+	(function() {
+		/* Variables for cleanup retry mechanism */
+		let cleanupRetries = 0;
+		const maxRetries = 5;
+		let unraidWaveTimer;
+
+		/* Function to clean up after downloading */
+		function cleanUp() {
+			if (document.hasFocus()) {
+				/* Reset the button text and enable it */
+				$('input[value="Downloading..."]').val('Download').prop('disabled', false);
+
+				/* Send a POST request to delete the downloaded file */
+				$.post('/webGui/include/Download.php', { cmd: 'delete', file: zipFile })
+					.fail(function() {
+						console.error('Failed to delete the file.');
+					});
+			} else if (cleanupRetries < maxRetries) {
+				/* Retry cleanup after 4000 milliseconds (4 seconds) */
+				cleanupRetries++;
+				setTimeout(cleanUp, 4000);
+			}
+		}
+
+		/* Function to initiate the download process */
+		function getlog() {
+			/* Set the button text to indicate downloading and disable it */
+			$('input[value="Download"]').val('Downloading...').prop('disabled', true);
+
+			/* Send a POST request to trigger the download process */
+			$.post('/plugins/' + preclearPluginPath + '/include/Preclear.php', { action: 'download', file: zipFile }, function(zip) {
+				/* Redirect to the downloaded file */
+				location = zip;
+
+				/* Initiate cleanup after 4000 milliseconds (4 seconds) */
+				setTimeout(cleanUp, 4000);
+			}).fail(function() {
+				console.error('Failed to initiate the download process.');
+			});
+		}
+
+		/* Function to add a tooltip using Tooltipster */
+		function addTooltip(target) {
+			if (typeof $.fn.tooltipster === 'undefined') {
+				$.getScript('path_to_tooltipster.js', function() {
+					initializeTooltip(target);
+				});
+			} else {
+				initializeTooltip(target);
+			}
+
+			function initializeTooltip(target) {
+				$(target).tooltipster({
+					delay: 100,
+					trigger: 'custom',
+					triggerOpen: { mouseenter: true },
+					triggerClose: { click: false, scroll: true, mouseleave: true }
+				});
+			}
+		}
+
+		/* DOMContentLoaded Event for Spinner Control */
+		document.addEventListener('DOMContentLoaded', function() {
+			/* Start the spinner with a delay */
+			unraidWaveTimer = setTimeout(function() {
+				$('div.spinner.fixed').show();
+			}, 500);
+
+			/* Clear the spinner once DOM is fully loaded */
+			clearTimeout(unraidWaveTimer);
+			$('div.spinner.fixed').hide();
+		});
+
+		/* Function to get a tab or title element by name */
+		function get_tab_title_by_name(name) {
+			const tab = $("input[name$=tabs] + label").filter(function() {
+				return $(this).text() === name;
+			}).prev();
+
+			const title = $("<?=$title_div;?> > span.left").filter(function() {
+				return $(this).text() === name;
+			}).parent();
+
+			return tab.length ? tab : (title.length ? title : $(document));
+		}
+
+		/* Function to add a button to a tab */
+		function addButtonTab(Button, Name, autoHide = true, Append = true) {
+			const Target = get_tab_title_by_name(Name);
+			const elementId = 'event-' + new Date().getTime() * Math.floor(Math.random() * 100000);
+			const element = $("<span id='" + elementId + "' class='status' style='padding-left:5px;'>" + Button + "</span>");
+
+			if (element.find("input[type='button']").length) {
+				element.addClass("vhshift");
+				element.find("input[type='button']").prop("style", "padding-top: 5px; padding-bottom: 5px; margin-top:-3px; margin-bottom:0;");
+			}
+
+			if (Target.prop('nodeName') === "DIV") {
+				element.addClass("vhshift");
+				<? if (version_compare($version['version'],"7.1.999",">") ) : ?>
+					Target.after(element);
+					element.addClass("udbutton");
+				<? else:?>
+					Append ? Target.append(element) : Target.prepend(element);
+				<? endif; ?>
+			} else if (Target.prop('nodeName') === "INPUT") {
+				element.css("display", "none");
+				Append ? $('.tabs').append(element) : $('.tabs').prepend(element);
+
+				Target.on({ click: function() { $('#' + elementId).fadeIn('slow'); } });
+
+				if (Target.is(':checked') || !autoHide) {
+					$('#' + elementId).fadeIn('slow');
+				}
+
+				$("input[name$=tabs]").each(function() {
+					if (!$(this).is(Target) && autoHide) {
+						$(this).on({ click: function() { $('#' + elementId).fadeOut('slow'); } });
+					}
+				});
+			} else {
+				return true;
+			}
+
+			return false;
+		}
+
+		/* Dynamically Load SweetAlert2 if Not Already Loaded */
+		if (typeof swal2 === "undefined") {
+			$('head').append($('<link rel="stylesheet" />').attr('href', '<?autov("/plugins/".UNASSIGNED_PRECLEAR_PLUGIN."/assets/sweetalert2.css");?>'));
+			$.getScript('/plugins/' + preclearPluginPath + '/assets/sweetalert2.js', function() {
+				console.log('SweetAlert2 loaded successfully.');
+			});
+		}
+
+		/* Check for Plugin Updates */
+		$(function() {
+			if (typeof caPluginUpdateCheck === "function") {
+				caPluginUpdateCheck("unassigned.devices.preclear.plg");
+			}
+		});
+
+		/* Expose functions to global scope if needed */
+		window.getlog = getlog;
+		window.addTooltip = addTooltip;
+		window.addButtonTab = addButtonTab;
+	})();
+
+	<?if (isset($_GET['disk']) && ! $Preclear->isRunning($_GET['disk']) ) echo "startDisk = '".htmhspecialchars($_GET[disk])."';";?>
+
+	$(function(){
+		addButtonTab('<a class="tooltip-toggle" style="cursor:pointer" onclick="getlog(this)" title="_(Download Logs)_"><i class="fa fa-download"></i></a>', "Preclear Disk");
+		addButtonTab(' | ', "Preclear Disk");
+		addButtonTab('<a class="tooltip-toggle" style="cursor:pointer" onclick="openPreclearLog();return false;" title="_(Preclear Log)_"><i class="fa fa-align-left"></i></a>', "Preclear Disk");
+		addButtonTab(' | ', "Preclear Disk");
+		addButtonTab('<a class="tooltip-toggle" style="cursor:pointer;" onclick="preclearClear()" title="_(Fix Preclear)_"><i class="fa fa-refresh"></i></a>', "Preclear Disk");
+		addButtonTab( '| ', "Preclear Disk");
+		addButtonTab('<a class="tooltip-toggle preclear-queue" style="cursor:pointer" onclick="setPreclearQueue();" title="_(Set Preclear Queue)_"><i class="fa fa-list-ol"></i></a>', "Preclear Disk");
+		addButtonTab(' | ', "Preclear Disk");
+		addButtonTab('<a class="tooltip-toggle" style="cursor:pointer;" onclick="preclearResumeAll()" title="_(Resume all Sessions)_"><i class="fa fa-play green-text"></i></a>', "Preclear Disk");
+		addButtonTab('<a class="tooltip-toggle" style="cursor:pointer;" onclick="preclearPauseAll()" title="_(Pause all Sessions)_"><i class="fa fa-pause yellow-orb"></i></a>', "Preclear Disk");
+		addButtonTab('<a class="tooltip-toggle" style="cursor:pointer;" onclick="preclearStopAll()" title="_(Stop all Sessions)_"><i class="fa fa-stop red-text"></i></a>', "Preclear Disk");
+		addButtonTab(' | ', "Preclear Disk");
+		addButtonTab('<a class="tooltip-toggle" style="cursor:pointer" onclick="startPreclear(\'\', \'yes\');" title="_(Start Multiple Sessions)_"><i class="fa fa-toggle-right"></i></a>', "Preclear Disk");
+	});
+</script>
