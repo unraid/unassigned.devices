@@ -119,7 +119,7 @@ parted-3.6-x86_64-1.txz
 <!--
 exfat-utils-1.3.0-x86_64-1_slonly.txz
 -->
-<FILE Name="&packages;/exfat-utils-1.3.0-x86_64-1_slonly.txz" Run="upgradepkg --install-new">
+<FILE Max="7.1.9" Name="&packages;/exfat-utils-1.3.0-x86_64-1_slonly.txz" Run="upgradepkg --install-new">
 <URL>"&gitURL;/packages/exfat-utils-1.3.0-x86_64-1_slonly.txz"</URL>
 <MD5>5f7e017b6a56075b6232483b8028a37c</MD5>
 </FILE>
@@ -127,7 +127,7 @@ exfat-utils-1.3.0-x86_64-1_slonly.txz
 <!--
 fuse-exfat-1.3.0-x86_64-1_slonly.txz
 -->
-<FILE Name="&packages;/fuse-exfat-1.3.0-x86_64-1_slonly.txz" Run="upgradepkg --install-new">
+<FILE Max="7.1.9" Name="&packages;/fuse-exfat-1.3.0-x86_64-1_slonly.txz" Run="upgradepkg --install-new">
 <URL>"&gitURL;/packages/fuse-exfat-1.3.0-x86_64-1_slonly.txz"</URL>
 <MD5>97298a972e2c0ac0ea12256134a2a723</MD5>
 </FILE>
