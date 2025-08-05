@@ -340,6 +340,8 @@ class Preclear
 
 	public function html()
 	{
+		global $version;
+
 		$cycles	= "";
 		for ($i=1; $i <= 3; $i++) {
 			$cycles .= "<option value='$i'>$i</option>";
@@ -377,6 +379,7 @@ class Preclear
 	select {width: auto;}
 	select#multiple_preclear {width: 100%;}
 </style>
+<? if ( version_compare($version['version'],"7.1.9",">")):?>
 <div id="preclear-dialog" style="display:none;" title=""></div>
 <div id="dialog-header-defaults" style="display:none;">
 	<dl class="dl-dialog"><dt><?=_('Device Model')?>:</dt><dd style='margin-bottom:0px;'><span style='color:#EF3D47;font-weight:bold;'>{model}</span></dd></dl>
@@ -637,6 +640,235 @@ class Preclear
 		</dd>
 	</dl>
 </div>
+<? else: ?>
+	<div id="preclear-dialog" style="display:none;" title=""></div>
+<div id="dialog-header-defaults" style="display:none;">
+	<dl class="dl-dialog"><dt><?=_('Device Model')?>:</dt><dd style='margin-bottom:0px;'><span style='color:#EF3D47;font-weight:bold;'>{model}</span></dd></dl>
+	<dl class="dl-dialog"><dt><?=_('Serial Number')?>:</dt><dd style='margin-bottom:0px;'><span style='color:#EF3D47;font-weight:bold;'>{serial_short}</span></dd></dl>
+	<dl class="dl-dialog"><dt><?=_('Firmware')?>:</dt><dd style='margin-bottom:0px;'><span style='color:#EF3D47;font-weight:bold;'>{firmware}</span></dd></dl>
+	<dl class="dl-dialog"><dt><?=_('Disk Size')?>:</dt><dd style='margin-bottom:0px;'><span style='color:#EF3D47;font-weight:bold;'>{size_h}</span></dd></dl>
+	<dl class="dl-dialog"><dt><?=_('Device')?>:</dt><dd style='margin-bottom:0px;'><span style='color:#EF3D47;font-weight:bold;'>{device}</span></dd></dl>
+</div>
+<div id="dialog-multiple-defaults" style="display:none;">
+	<dl class="dl-dialog">
+		<dt><?= _('Select Disks') ?>: </dt>
+		<dd style="margin-bottom:0px;">
+			<select id="multiple_preclear" name="disks" multiple class="chosen" data-placeholder="<?= _('Preclear Disks') ?>">
+				{0}
+			</select>
+		</dd>
+	</dl>
+</div>
+
+<div id="joel-start-defaults" style="display:none;">
+	<dl class="dl-dialog">
+		<dt><?=_('Operation')?>: </dt>
+		<dd>
+			<select name="op" onchange="toggleSettings(this);">
+				<option value='0'><?=_('Clear Disk')?></option>
+				<option value='-V'><?=_('Post-read Verify')?></option>
+				<option value='-t'><?=_('Verify Signature')?></option>
+				<option value='-z'><?=_('Clear Signature')?></option>
+			</select>
+		</dd>
+		<div class='write_options'>
+			<dt><?=_('Cycles')?>: </dt>
+			<dd>
+				<select name="-c"><?=$cycles;?></select>
+			</dd>
+		</div>
+		<?if ( array_key_exists("notifications", $capabilities) && $capabilities["notifications"] ):?>
+		<div class="notify_options">
+			<dt><?=_('Notifications')?>: </dt>
+			<dd style="font-weight: normal;">
+				<input type="checkbox" name="preclear_notify" onchange="toggleFrequency(this, '-M');">Per Unraid Settings
+			</dd>
+			<dt>&nbsp;</dt>
+			<dd>
+			<dd>
+				<select name="-M" disabled>
+					<option value="1" selected>On preclear end</option>
+					<option value="2">On every cycle end</option>
+					<option value="3">On every cycle and step end</option>
+					<option value="4">On every 25% of progress</option>
+				</select>
+				</dd>
+		</div>
+		<?endif;?>
+		<div class='read_options'>
+			<dt><?=_('Read size')?>: </dt>
+			<dd>
+				<select name="-r">
+					<option value="0">Default</option><?=$size;?>
+				</select>
+			</dd>
+		</div>
+		<div class='write_options'>
+			<dt><?=_('Write size')?>: </dt>
+			<dd>
+				<select name="-w">
+					<option value="0">Default</option><?=$size;?>
+				</select>
+			</dd>
+			<dt><?=_('Skip Pre-read')?>: </dt>
+			<dd>
+				<input type="checkbox" name="-W" class="switch" >
+			</dd>
+		</div>
+		<?if ( array_key_exists("fast_postread", $capabilities) && $capabilities["fast_postread"] ):?>
+		<div class='postread_options'>
+			<dt><?=_('Fast Post-read')?>: </dt>
+			<dd>
+				<input type="checkbox" name="-f" class="switch" >
+			</dd>
+		</div>
+		<?endif;?>
+		<div class='inline_help'>
+			<p><?=_('Enable Testing for debugging')?></p>
+			<dt><?=_('Testing')?>:</dt>
+			<dd>
+				<input type="checkbox" name="-s" class="switch" >
+			</dd>
+		</div>
+	</dl>
+</div>
+
+<div id="docker-start-defaults" style="display:none;">
+	<dl class="dl-dialog">
+		<dt><?=_('Operation')?>: </dt>
+		<dd>
+			<select name="op" onchange="toggleSettings(this);">
+				<option value='0'><?=_('Clear Disk')?></option>
+				<option value='-V'><?=_('Post-read Verify')?></option>
+				<option value='-t'><?=_('Verify Signature')?></option>
+				<option value='-z'><?=_('Clear Signature')?></option>
+			</select>
+		</dd>
+		<div class='write_options'>
+			<dt><?=_('Cycles')?>: </dt>
+			<dd>
+				<select name="-c"><?=$cycles;?></select>
+			</dd>
+		</div>
+		<?if ( array_key_exists("notifications", $capabilities) && $capabilities["notifications"] ):?>
+		<div class="notify_options">
+			<dt><?=_('Notifications')?>: </dt>
+			<dd>
+				<select name="-M">
+					<option value="0"><?=_('Disabled')?></option>
+					<option value="1"><?=_('On preclear end')?></option>
+					<option value="2"><?=_('On every cycle end')?></option>
+					<option value="3"><?=_('On every cycle and step end')?></option>
+					<option value="4"><?=_('On every 25% of progress')?></option>
+				</select>
+				</dd>
+		</div>
+		<?endif;?>
+		<div class='read_options'>
+			<dt><?=_('Read size')?>: </dt>
+			<dd>
+				<select name="-r">
+					<option value="0"><?=_('Default')?></option><?=$size;?>
+				</select>
+			</dd>
+		</div>
+		<div class='write_options'>
+			<dt><?=_('Write size')?>: </dt>
+			<dd>
+				<select name="-w">
+					<option value="0"><?=_('Default')?></option><?=$size;?>
+				</select>
+			</dd>
+			<dt><?=_('Skip Pre-read')?>: </dt>
+			<dd>
+				<input type="checkbox" name="-W" class="switch" >
+			</dd>
+		</div>
+		<?if ( array_key_exists("fast_postread", $capabilities) && $capabilities["fast_postread"] ):?>
+		<div class='postread_options'>
+			<dt><?=_('Fast Post-read')?>: </dt>
+			<dd>
+				<input type="checkbox" name="-f" class="switch" >
+			</dd>
+		</div>
+		<?endif;?>
+		<div class='inline_help'>
+			<p><?=_('Enable Testing for debugging')?></p>
+			<dt><?=_('Testing')?>:</dt>
+			<dd>
+				<input type="checkbox" name="-s" class="switch" >
+			</dd>
+		</div>
+	</dl>
+</div>
+
+<div id="gfjardim-start-defaults" style="display:none;">
+	<dl class="dl-dialog">
+		<dt><?=_('Operation')?>: </dt>
+		<dd>
+			<select name="op" onchange="toggleSettings(this);">
+				<option value="0"><?=_('Clear Disk')?></option>
+				<option value="--verify"><?=_('Verify Disk')?></option>
+				<option value="--signature"><?=_('Verify Signature')?></option>
+				<option value="--erase"><?=_('Erase Disk')?></option>
+				<option value="--erase-clear"><?=_('Erase and Clear Disk')?></option>
+			</select>
+		</dd>
+		<div class="write_options cycles_options">
+			<dt><?=_('Cycles')?>: </dt>
+			<dd>
+				<select name="--cycles"><?=$cycles2;?></select>
+			</dd>
+		</div>
+		<div class="notify_options">
+			<dt><?=_('Notifications')?>:</dt>
+			<dd style="font-weight: normal;">
+				<input type="checkbox" name="preclear_notify" onchange="toggleFrequency(this, '--frequency');">Per Unraid Settings
+			</dd>
+			<dt>&nbsp;</dt>
+			<dd>
+				<select name="--frequency" disabled>
+					<option value="1" selected><?=_('On preclear end')?></option>
+					<option value="2"><?=_('On every cycle end')?></option>
+					<option value="3"><?=_('On every cycle and step end')?></option>
+					<option value="4"><?=_('On every 25% of progress')?></option>
+				</select>
+			</dd>
+		</div>
+		<div class="write_options">
+			<dt><?=_('Skip Pre-Read')?>: </dt>
+			<dd>
+				<input type="checkbox" name="--skip-preread" class="switch" >
+			</dd>
+			<dt><?=_('Skip Post-Read')?>: </dt>
+			<dd>
+				<input type="checkbox" name="--skip-postread" class="switch" >
+			</dd>
+		</div>
+		<div class='inline_help'>
+			<p><?=_('Enable Testing for debugging')?></p>
+			<dt><?=_('Testing')?>:</dt>
+			<dd>
+				<input type="checkbox" name="--test" class="switch" >
+			</dd>
+		</div>
+	</dl>
+</div>
+
+<div id="preclear-set-queue-defaults" style="display:none;">
+	<dl>
+		<?=_('If you set a queue limit, all running preclear sessions above that limit will be paused and remain in the queue until a session finishes')?>.<br><br>
+	</dl>
+	<dl class="dl-dialog">
+		<dt><?=_('Concurrent Sessions')?>: </dt>
+		<dd>
+			<select name="queue">
+					<?=$queue;?>
+				</select>
+		</dd>
+	</dl>
+</div>
+<? endif;?>
 	<?
 	}
 }
