@@ -2,7 +2,7 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name		"unassigned.devices-plus">
 <!ENTITY author		"Limetech">
-<!ENTITY version	"2025.08.05">
+<!ENTITY version	"2025.08.05a">
 <!ENTITY launch		"Main/UnassignedDevices">
 <!ENTITY gitURL		"https://raw.githubusercontent.com/unraid/unassigned.devices/master">
 <!ENTITY pluginURL	"&gitURL;/&name;.plg">
@@ -21,7 +21,7 @@
 
 <CHANGES>
 ###2025.08.05
-- Changed: Don't install exFat when running OS 7.2+
+- Changed: Don't install exFat or parted when running OS 7.2+
 
 ###2025.02.14
 - Add: Change to Unraid repository.
@@ -113,7 +113,7 @@ rm -rf /usr/local/emhttp/plugins/&name;/* 2>/dev/null
 <!--
 parted-3.6-x86_64-1.txz
 -->
-<FILE Name="&packages;/parted-3.6-x86_64-1.txz" Run="upgradepkg --install-new">
+<FILE Max="7.1.9" Name="&packages;/parted-3.6-x86_64-1.txz" Run="upgradepkg --install-new">
 <URL>"&gitURL;/packages/parted-3.6-x86_64-1.txz"</URL>
 <MD5>a0d226c87c2bbfda2100030f30bd38ef</MD5>
 </FILE>
