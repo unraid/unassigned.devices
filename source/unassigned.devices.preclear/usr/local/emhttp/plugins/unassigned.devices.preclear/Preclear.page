@@ -38,6 +38,7 @@ if (version_compare($version['version'], '6.12.0-beta5', '>')) {
 <link rel="stylesheet" href="<?autov("/plugins/".UNASSIGNED_PRECLEAR_PLUGIN."/assets/style-$theme.css")?>">
 <link rel="stylesheet" href="<?autov("/plugins/".UNASSIGNED_PRECLEAR_PLUGIN."/assets/preclear.css")?>">
 
+<? if ( version_compare($version['version'],"7.1.9",">")):?>
 <style>
 	.udbutton {
 		float:right;
@@ -45,6 +46,7 @@ if (version_compare($version['version'], '6.12.0-beta5', '>')) {
 		margin-bottom:1rem;
 	}
 </style>
+<? endif;?>
 
 <?=$Preclear->html();?>
 <table class='preclear'>
