@@ -2,12 +2,12 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name		"unassigned.devices.preclear">
 <!ENTITY author		"Limetech">
-<!ENTITY version	"2025.05.22">
+<!ENTITY version	"2025.08.05">
 <!ENTITY launch		"Tools/Preclear">
 <!ENTITY gitURL		"https://raw.githubusercontent.com/unraid/unassigned.devices/master">
 <!ENTITY pluginURL	"&gitURL;/&name;.plg">
 <!ENTITY supportURL	"https://forums.unraid.net/topic/120567-unassigned-devices-preclear-a-utility-to-preclear-disks-before-adding-them-to-the-array/">
-<!ENTITY MD5		"96c3e070e942e5d4e14e5dcbf868d98b">
+<!ENTITY MD5		"e0ada14998665d05ea485611a77dab83">
 ]>
 <PLUGIN name="&name;"
 		author="&author;"
@@ -19,8 +19,10 @@
 		min="6.11.0">
 
 <CHANGES>
-###&name;
-###&version;
+###2025.08.05
+- Fixed: Display issues with Unraid 7.2+
+
+###2025.05.22
 - Rem: Do not update UD with the disk preclear status.  Refreshing and updating the status of a preclear on the UD page has become complicated and is not really necessary when the preclear page and the footer icon can give the status.  A preclear can still be started on the UD page.
 - Changed: Repository overhaul
 - Fixed: Missing preclear information on footer when running 7.1.0+
