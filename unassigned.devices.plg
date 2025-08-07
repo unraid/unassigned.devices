@@ -2,12 +2,12 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name		"unassigned.devices">
 <!ENTITY author		"Limetech">
-<!ENTITY version	"2025.06.15">
+<!ENTITY version	"2025.08.07">
 <!ENTITY launch		"Main/UnassignedDevices">
 <!ENTITY gitURL		"https://raw.githubusercontent.com/unraid/&name;/master">
 <!ENTITY pluginURL	"&gitURL;/&name;.plg">
 <!ENTITY supportURL	"https://forums.unraid.net/topic/92462-unassigned-devices-managing-disk-drives-and-remote-shares-outside-of-the-unraid-array/">
-<!ENTITY MD5		"1c37befea2b9d890fe5511bf87027507">
+<!ENTITY MD5		"a6cf244b3159bd8fe86e79340d1930c7">
 ]>
 
 <PLUGIN name="&name;"
@@ -20,7 +20,8 @@
 		min="6.11.0">
 
 <CHANGES>
-##&name;
+###2025.08.07
+- Fixed: Display aberrations on mobile devices with Unraid 7.2.x
 
 ###2025.06.15
 - Fixed: Issues with black theme and popups
@@ -2645,7 +2646,7 @@ echo " Version: &version;"
 echo ""
 echo " Note:"
 echo " Install the Unassigned Devices Plus plugin if you need to"
-echo " mount exFAT, HFS+, apfs file formats or format disks."
+echo " mount HFS+, apfs file formats or format disks."
 if [ -f /var/state/&name;/reboot_required ]; then
   echo ""
   echo " PLEASE REBOOT YOUR SERVER "
