@@ -37,7 +37,6 @@ $isUser0	= is_dir("/mnt/user0/");
 <script src="<?autov('/webGui/javascript/jquery.filetree.js')?>"></script>
 
 <script src="<?autov('/plugins/'.UNASSIGNED_PLUGIN.'/assets/arrive.min.js')?>"></script>
-
 <style>
 <?if ($themes1):?>
 	div.title.ud{margin-top:-45px}
@@ -47,6 +46,29 @@ $isUser0	= is_dir("/mnt/user0/");
 	div#title.ud{margin-top:0}
 <?endif;?>
 </style>
+<? if ( version_compare($var['version'], '7.1.9', '>') ):?>
+<style>
+  @media (max-width: 1080px) {
+    div.title.ud{
+      display:unset;
+      padding: unset;
+    }
+    .leftTitleUD{
+      display:block;
+      width:100%;
+      padding: 8px 8px;
+      background-color: inherit;
+    }
+    .rightTitleUD{
+      display:block;
+      width:100%;
+      padding: 8px 8px;
+      background-color: inherit;
+      right: unset;
+    }
+  }
+</style>
+<?endif;?>
 
 <script>
 	/* Initialize PHP variables passed to JavaScript */
@@ -748,14 +770,14 @@ $isUser0	= is_dir("/mnt/user0/");
 <div class='pluginUpdate'></div>
 
 <div class='title ud'>
-<div class='left'>_(Unassigned Disks)_/_(Remote Shares)_/_(Historical Unassigned Devices)_</div>
-<div class='titleRight'>
-<div class='right ud ud_titleFix'><a class='info'  href="/Settings/UnassignedDevicesSettings"><i class="fa fa-gear"></i><span class='help-content'><?=_('Unassigned Devices Settings')?></span></a></div>
-<div class='right ud ud_titleFix'><a class='info' onclick="rescan_disks()"><i class="fa fa-refresh"></i><span class='help-content'><?=_('Refresh Disks and Configuration')?></span></a></div>
-<div class='right ud ud_titleFix'><a title="_(Show/Hide Historical Unassigned Devices)_"></a><input type="checkbox" name='historical-switch' class="historical-switch"></div>
-<div class='right ud ud_titleFix'><a title="_(Show/Hide SMB/NFS/ISO Shares)_"></a><input type="checkbox" name='shares-swirch' class="shares-switch"></div>
-<div class='right ud ud_titleFix'><a title="_(Show/Hide Unassiged Disk Devices)_"></a><input type="checkbox" name='disks-switch' class="disks-switch"></div>
-</div>
+  <div class='left leftTitleUD'>_(Unassigned Disks)_/_(Remote Shares)_/_(Historical Unassigned Devices)_</div>
+  <div class='titleRight rightTitleUD'>
+    <div class='right ud ud_titleFix'><a class='info'  href="/Settings/UnassignedDevicesSettings"><i class="fa fa-gear"></i><span class='help-content'><?=_('Unassigned Devices Settings')?></span></a></div>
+    <div class='right ud ud_titleFix'><a class='info' onclick="rescan_disks()"><i class="fa fa-refresh"></i><span class='help-content'><?=_('Refresh Disks and Configuration')?></span></a></div>
+    <div class='right ud ud_titleFix'><a title="_(Show/Hide Historical Unassigned Devices)_"></a><input type="checkbox" name='historical-switch' class="historical-switch"></div>
+    <div class='right ud ud_titleFix'><a title="_(Show/Hide SMB/NFS/ISO Shares)_"></a><input type="checkbox" name='shares-swirch' class="shares-switch"></div>
+    <div class='right ud ud_titleFix'><a title="_(Show/Hide Unassiged Disk Devices)_"></a><input type="checkbox" name='disks-switch' class="disks-switch"></div>
+  </div>
 </div>
 
 <div class='show-disks'>
