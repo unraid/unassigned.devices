@@ -2,12 +2,12 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name		"unassigned.devices.preclear">
 <!ENTITY author		"Limetech">
-<!ENTITY version	"2025.08.05">
+<!ENTITY version	"2025.08.20">
 <!ENTITY launch		"Tools/Preclear">
 <!ENTITY gitURL		"https://raw.githubusercontent.com/unraid/unassigned.devices/master">
 <!ENTITY pluginURL	"&gitURL;/&name;.plg">
 <!ENTITY supportURL	"https://forums.unraid.net/topic/120567-unassigned-devices-preclear-a-utility-to-preclear-disks-before-adding-them-to-the-array/">
-<!ENTITY MD5		"e0ada14998665d05ea485611a77dab83">
+<!ENTITY MD5		"4bc8db5bef47af71f658be8dd5b4dcce">
 ]>
 <PLUGIN name="&name;"
 		author="&author;"
@@ -19,6 +19,10 @@
 		min="6.11.0">
 
 <CHANGES>
+###2025.08.20
+- Fixed: Interfering with every GUI page (notably Syslinux Config)
+- Fixed: On black theme, after selecting an item from drop down, the item would display black on black
+
 ###2025.08.05
 - Fixed: Display issues with Unraid 7.2+
 
