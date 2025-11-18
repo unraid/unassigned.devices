@@ -2585,7 +2585,7 @@ function add_smb_share($dir, $recycle_bin = false, $fat_fruit = false) {
 						if (file_exists("/boot/config/plugins/recycle.bin/recycle.bin.cfg")) {
 							$recycle_bin_cfg	= @parse_plugin_cfg("recycle.bin");
 						} else {
-							$recycle_nin_cfg	= [];
+							$recycle_bin_cfg	= [];
 						}
 						if ((isset($recycle_bin_cfg['INCLUDE_UD'])) && ($recycle_bin_cfg['INCLUDE_UD'] == "yes")) {
 							if (is_file("/var/run/recycle.bin.pid")) {

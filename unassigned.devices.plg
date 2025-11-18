@@ -2,12 +2,12 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name		"unassigned.devices">
 <!ENTITY author		"Limetech">
-<!ENTITY version	"2025.08.07">
+<!ENTITY version	"2025.11.18">
 <!ENTITY launch		"Main/UnassignedDevices">
 <!ENTITY gitURL		"https://raw.githubusercontent.com/unraid/&name;/master">
 <!ENTITY pluginURL	"&gitURL;/&name;.plg">
 <!ENTITY supportURL	"https://forums.unraid.net/topic/92462-unassigned-devices-managing-disk-drives-and-remote-shares-outside-of-the-unraid-array/">
-<!ENTITY MD5		"a6cf244b3159bd8fe86e79340d1930c7">
+<!ENTITY MD5		"9c399c4bb6befa880a6fcf0f66a37e35">
 ]>
 
 <PLUGIN name="&name;"
@@ -20,6 +20,11 @@
 		min="6.11.0">
 
 <CHANGES>
+###2025.11.18
+- Fixed: Fatal Javascript error if SSL is set to 'no'
+- Fixed: SMB settings not retaining user's permissions
+- Fixed: Possible race conditions
+
 ###2025.08.07
 - Fixed: Display aberrations on mobile devices with Unraid 7.2.x
 
@@ -2594,13 +2599,13 @@ fi
 chown nobody:users /mnt/rootshare
 
 # Add unassigned_devices to smb.conf.
-at -M -f /tmp/&name;/add-smb now 2>/dev/null
+/tmp/&name;/add-smb 2>/dev/null
 
 # Copy config files to the tmp file system to be sure we have current settings.
 /usr/bin/cp /boot/config/plugins/&name;/*.cfg /tmp/&name;/config/ 2>/dev/null
 
 # Apply settings to update share settings and copy configuration files to tmp file system.
-/usr/local/emhttp/plugins/&name;/scripts/rc.settings apply 2>/dev/null
+/usr/local/emhttp/plugins/&name;/scripts/rc.settings shares 2>/dev/null
 
 # Rename original Dynamix page
 if [[ -e /usr/local/emhttp/plugins/dynamix/OpenDevices.page ]]; then

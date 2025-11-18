@@ -977,7 +977,12 @@ _(User Script)_:
 		/* Skip if fileTree is already open. */
 		if (!inputElement.next().hasClass('fileTree')) {
 			/* Create a random id. */
-			const randomId = 'id-' + crypto.randomUUID();
+			let randomId;
+			try {
+				randomId = 'id-' + crypto.randomUUID();
+			} catch (error) {
+				randomId = 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 15);
+			}
 
 			/* Add a new span and load fileTree. */
 			inputElement.after("<span id='fileTree" + randomId + "' class='textarea fileTree'></span>");

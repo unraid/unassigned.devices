@@ -1,9 +1,9 @@
-91756907af0918caac6fc10fa4f60047  ./DeviceSettings.page
+e8e641aaca456ccb5871ccc163a99294  ./DeviceSettings.page
 6c9f26bf35359eb5a2b44715840a6fbb  ./LICENSE.md
 456acd5f24b7ea60a08f051aed536491  ./README.md
 d7337dc052162415b0c1eef226239449  ./ScriptLog.page
 7528a7220aebc6245d2297dc2b5d4e0f  ./UnassignedDevices.page
-d4bc9ebd4927b788110e2f6ce038cb0c  ./UnassignedDevicesCommon.page
+5ecb209ffbb224bd7747c84b02e91c19  ./UnassignedDevicesCommon.page
 a780d7bdabfa118563c080e51258b3f2  ./UnassignedDevicesNFS.page
 4d36b9b08f11d864ca7c43a9e076ff0f  ./UnassignedDevicesPassword.page
 cf0bf41a6acaea5dabdb1d4f8eefd9ce  ./UnassignedDevicesRemoteTest.page
@@ -36,7 +36,7 @@ eb398ec6d6ff01a219ace990dc9d4c2e  ./icons/nfs-radio.png
 80ce8aaf4adfbdda3fb023627be2ecfc  ./icons/smbsettings.png
 3508bc186813bcfb56a934ea6df7567d  ./include/UnassignedDevices.php
 a5288d69de2c083244ff82835e7c7cc5  ./include/fsck.php
-13b9434d513705c2f981b831c3da1889  ./include/lib.php
+c32e1657d4bfe65686f0087fa16e943d  ./include/lib.php
 c6f82243a5d86242d36f1d62c858113d  ./include/script.php
 3b5dd3a33b007ae04edc8780afc27da0  ./include/server_test.php
 81223b2a03796d64c3172c043de8ecd9  ./scripts/copy_config.sh

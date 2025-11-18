@@ -51,7 +51,13 @@ if ((! $parted) && ($UD_cfg['Config']['destructive_mode'] == "enabled")) {
 		const inputElement = $(el);
 
 		if (!inputElement.next().hasClass('fileTree')) {
-			const randomId = 'id-' + crypto.randomUUID();
+			let randomId;
+			try {
+				randomId = 'id-' + crypto.randomUUID();
+			} catch (error) {
+				randomId = 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 15);
+			}
+
 			const fileTreeElement = createFileTreeElement(inputElement, randomId);
 
 			fileTreeElement.fileTree(
