@@ -2,12 +2,12 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name		"unassigned.devices">
 <!ENTITY author		"Limetech">
-<!ENTITY version	"2025.11.18">
+<!ENTITY version	"2026.09.15">
 <!ENTITY launch		"Main/UnassignedDevices">
 <!ENTITY gitURL		"https://raw.githubusercontent.com/unraid/&name;/master">
 <!ENTITY pluginURL	"&gitURL;/&name;.plg">
 <!ENTITY supportURL	"https://forums.unraid.net/topic/92462-unassigned-devices-managing-disk-drives-and-remote-shares-outside-of-the-unraid-array/">
-<!ENTITY MD5		"9c399c4bb6befa880a6fcf0f66a37e35">
+<!ENTITY MD5		"da9d69622602962e9bd41f3e071fe216">
 ]>
 
 <PLUGIN name="&name;"
@@ -20,6 +20,9 @@
 		min="6.11.0">
 
 <CHANGES>
+###2026.09.15
+- Fixed: exFAT formatting on Unraid 7.2+
+
 ###2025.11.18
 - Fixed: Fatal Javascript error if SSL is set to 'no'
 - Fixed: SMB settings not retaining user's permissions
