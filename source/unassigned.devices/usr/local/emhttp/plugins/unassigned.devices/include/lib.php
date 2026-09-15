@@ -853,7 +853,8 @@ function get_format_cmd($dev, $fs, $pool_name) {
 			break;
 
 		case 'exfat':
-			$rc = "/usr/sbin/mkfs.exfat ".escapeshellarg($dev)." 2>&1";
+			$exfat_cmd = is_executable("/sbin/mkfs.exfat") ? "/sbin/mkfs.exfat" : "/usr/sbin/mkfs.exfat";
+			$rc = $exfat_cmd." ".escapeshellarg($dev)." 2>&1";
 			break;
 
 		case 'fat32':
