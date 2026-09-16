@@ -36,7 +36,7 @@ eb398ec6d6ff01a219ace990dc9d4c2e  ./icons/nfs-radio.png
 80ce8aaf4adfbdda3fb023627be2ecfc  ./icons/smbsettings.png
 3508bc186813bcfb56a934ea6df7567d  ./include/UnassignedDevices.php
 a5288d69de2c083244ff82835e7c7cc5  ./include/fsck.php
-c32e1657d4bfe65686f0087fa16e943d  ./include/lib.php
+88591a79ccc7b4d1dbc7b4b31b3d5182  ./include/lib.php
 c6f82243a5d86242d36f1d62c858113d  ./include/script.php
 3b5dd3a33b007ae04edc8780afc27da0  ./include/server_test.php
 81223b2a03796d64c3172c043de8ecd9  ./scripts/copy_config.sh
