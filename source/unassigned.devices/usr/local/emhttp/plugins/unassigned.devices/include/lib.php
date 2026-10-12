@@ -645,6 +645,20 @@ function get_disk_dev($dev) {
 	return $rc;
 }
 
+/* Get the udev serial for a device.  Newer udev rules (Unraid 7.3.3+) append the NVMe namespace id to ID_SERIAL */
+/* (i.e. '<model>_<serial>_1').  Remove it for namespace 1 so the serial matches the one used on earlier releases */
+/* and existing disk settings are found. */
+function get_udev_serial($attrs) {
+	$serial	= trim($attrs['ID_SERIAL'] ?? "");
+	$nsid	= $attrs['ID_NSID'] ?? "";
+
+	if (($nsid == "1") && (substr($serial, -2) == "_1")) {
+		$serial	= substr($serial, 0, -2);
+	}
+
+	return $serial;
+}
+
 /* Get the disk id for this device from the devs.ini. */
 function get_disk_id($dev, $udev_id) {
 	global $paths;
@@ -3902,7 +3916,7 @@ function get_disk_info($dev) {
 	$disk						= [];
 	$attrs						= (isset($_ENV['DEVTYPE']) && (strpos($dev, '/dev/disk/') === 0)) ? get_udev_info($dev, $_ENV) : get_udev_info($dev, null);
 	$disk['device']				= realpath($dev);
-	$disk['serial']				= get_disk_id($disk['device'], trim($attrs['ID_SERIAL']));
+	$disk['serial']				= get_disk_id($disk['device'], get_udev_serial($attrs));
 	$disk['serial_short']		= $attrs['ID_SCSI_SERIAL'] ?? ($attrs['ID_SERIAL_SHORT'] ?? "");
 	$disk['id_bus']				= $attrs['ID_BUS'] ?? "";
 	$disk['fstype']				= $attrs['ID_FS_TYPE'] ?? "";
@@ -3955,7 +3969,7 @@ function get_partition_info($dev) {
 	if ($attrs['DEVTYPE'] == "partition") {
 		$partition['serial_short']		= $attrs['ID_SCSI_SERIAL'] ?? ($attrs['ID_SERIAL_SHORT'] ?? "");
 		$partition['device']			= realpath($dev);
-		$partition['serial']			= isset($attrs['ID_SERIAL']) ? get_disk_id($partition['device'], trim($attrs['ID_SERIAL'])) : "";
+		$partition['serial']			= isset($attrs['ID_SERIAL']) ? get_disk_id($partition['device'], get_udev_serial($attrs)) : "";
 		$partition['uuid']				= $attrs['ID_FS_UUID'] ?? "";
 
 		/* Get partition number */
