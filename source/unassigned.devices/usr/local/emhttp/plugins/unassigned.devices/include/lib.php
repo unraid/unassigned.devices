@@ -3591,8 +3591,13 @@ function get_unassigned_disks() {
 						return $ar['device'];
 					}, $ud_disks), true)) {
 
-					/* Get partitions matching the pattern "$device.*-part\d+". */
-					$partitions = array_values(preg_grep("|$device.*-part\d+|", $devicePaths));
+					/* Get partitions from sysfs.  Matching on the by-id name fails when the disk and its partitions keep different aliases. */
+					$partitions = [];
+					foreach ($devicePaths as $partPath => $partDevice) {
+						if (is_file("/sys/class/block/".basename($path)."/".basename($partPath)."/partition")) {
+							$partitions[] = $partDevice;
+						}
+					}
 
 					/* Sort partitions using natural order. */
 					natsort($partitions);
