@@ -142,6 +142,12 @@ i.samba-log {
 .exec {
 	cursor: pointer;
 }
+/* A tooltip on an icon or label that is not a link: keep the text color, no link cursor. */
+a.info.inactive {
+	color: inherit;
+	cursor: default;
+	text-decoration: none;
+}
 i.fa-append {
 	margin: 0px;
 	font-size: 0.8em;

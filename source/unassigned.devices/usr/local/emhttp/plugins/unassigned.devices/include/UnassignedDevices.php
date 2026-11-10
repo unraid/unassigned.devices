@@ -85,6 +85,11 @@ function render_used_and_free_disk($disk, $mounted) {
 	return $out;
 }
 
+/* An icon that cannot be used right now, with a tooltip that says why. */
+function inactive_icon($icon, $tip) {
+	return "<a class='info inactive'><i class='".$icon."'></i><span>".$tip."</span></a>";
+}
+
 /* Get the partition information and render for html. */
 function render_partition($disk, $partition, $disk_line = false) {
 	global $paths, $shares_enabled, $version;
@@ -111,18 +116,34 @@ function render_partition($disk, $partition, $disk_line = false) {
 			$file_system_check = (($fstype != "btrfs") && ($fstype != "zfs")) ? _('File System Check') : _('File System Scrub');
 			$fscheck = "<a class='exec info' onclick='openWindowFsck(\"/plugins/".UNASSIGNED_PLUGIN."/include/fsck.php?device=".$partition['device']."&fs=".$partition['fstype']."&luks=".$partition['luks']."&serial=".$partition['serial']."&mountpoint=".htmlspecialchars($partition['mountpoint'])."&check_type=ro&type="._('Done')."\",\"Check filesystem\",600,900);'><i class='fa fa-check partition-hdd'></i><span>".$file_system_check."</span></a>";
 		} else {
-			$fscheck = "<i class='fa fa-check partition-hdd'></i></a>";
+			/* Say why the check is not available, the case a user can change first. */
+			if ($disk['array_disk']) {
+				$tip = _('File System Check').": "._('not available, the disk is assigned in Unraid (array, pool or boot device)');
+			} else if (($is_mounting) || ($is_unmounting)) {
+				$tip = _('File System Check').": "._('not available while the partition is mounting or unmounting');
+			} else if ($partition['running']) {
+				$tip = _('File System Check').": "._('not available while the device script is running');
+			} else if (! $fstype) {
+				$tip = _('File System Check').": "._('not available, the partition has no file system (for example it was never formatted)');
+			} else if ($fstype == "apfs") {
+				$tip = _('File System Check').": "._('not available for APFS');
+			} else if (($fstype == "btrfs") || ($fstype == "zfs")) {
+				$tip = _('File System Scrub').": "._('mount the partition first, btrfs and ZFS are scrubbed while mounted');
+			} else {
+				$tip = _('File System Check').": "._('unmount the partition first, so nothing writes to it during the check');
+			}
+			$fscheck = inactive_icon("fa fa-check partition-hdd", $tip);
 		}
-		$fscheck .= $partition['part'];
+		$fscheck .= "<a class='info inactive'>".$partition['part']."<span>"._('Partition')." ".$partition['part']." (".basename($partition['device']).")</span></a>";
 
 		if ($mounted && is_file($cmd)) {
 			if (! $disabled) {
 				$fscheck .= "<a class='exec info' onclick='openWindowFsck(\"/plugins/".UNASSIGNED_PLUGIN."/include/script.php?device=".$device."&type="._('Done')."\",\"Execute Script\",600,900);'><i class='fa fa-flash partition-script'></i><span>"._("Execute Script as udev simulating a device being installed")."</span></a>";
 			} else {
-				$fscheck .= "<i class='fa fa-flash partition-script'></i>";
+				$fscheck .= inactive_icon("fa fa-flash partition-script", _("Execute Script").": "._("not available while the partition is mounting or unmounting, or while the script is running"));
 			}
 		} else if ($mounted) {
-			$fscheck 	.= "<i class='fa fa-flash partition-script'></i>";
+			$fscheck 	.= inactive_icon("fa fa-flash partition-script", _("Execute Script").": "._("no device script is set, add one in Device Settings"));
 		}
 
 		/* Add remove partition icon if destructive mode is enabled. */
@@ -134,7 +155,7 @@ function render_partition($disk, $partition, $disk_line = false) {
 		if ($cmd) {
 			$mpoint			.= "<a class='info' href='/Main/ScriptLog?s=".$partition['serial']."&p=".$partition['part']."'><i class='fa fa-align-left partition-log'></i><span>"._("View Device Script Log")."</span></a>";
 		} else {
-			$mpoint			.= "<i class='fa fa-align-left partition-log' disabled></i>";
+			$mpoint			.= inactive_icon("fa fa-align-left partition-log", _("View Device Script Log").": "._("no device script is set, add one in Device Settings"));
 		}
 
 		$mount_point		= basename($partition['mountpoint']);
@@ -279,7 +300,7 @@ function render_partition($disk, $partition, $disk_line = false) {
 						$file_system_check = (($fstype != "btrfs") && ($fstype != "zfs")) ? _('File System Check') : _('File System Scrub');
 						$fscheck	= "<a class='exec info' onclick='openWindowFsck(\"/plugins/".UNASSIGNED_PLUGIN."/include/fsck.php?device=".$z['device']."&fs=".$fstype."&luks=".$z['device']."&serial=".$z['volume']."&mountpoint=".htmlspecialchars($z['mountpoint'])."&check_type=ro&type="._('Done')."\",\"Check filesystem\",600,900);'><i class='fa fa-check zfs-volume-hdd'></i><span>".$file_system_check."</span></a>";
 					} else {
-						$fscheck	= "<i class='fa fa-check zfs-volume-hdd'></i></a>";
+						$fscheck	= inactive_icon("fa fa-check zfs-volume-hdd", (! $fstype) ? _('File System Check').": "._('not available, the volume has no file system (for example it was never formatted)') : (($fstype == "btrfs") ? _('File System Scrub').": "._('mount the volume first, btrfs is scrubbed while mounted') : _('File System Check').": "._('unmount the volume first, so nothing writes to it during the check')));
 					}
 
 					if ($z['mounted']) {
@@ -814,7 +835,7 @@ switch ($_POST['action']) {
 				if ($mount['command']) {
 					$o_remotes	.= "<a class='info' href='/Main/ScriptLog?d=".$mount['device']."'><i class='fa fa-align-left samba-log'></i><span>"._("View SMB Script Log")."/"._("View NFS Script Log")."</span></a>";
 				} else {
-					$o_remotes	.= "<i class='fa fa-align-left samba-log'></i>";
+					$o_remotes	.= inactive_icon("fa fa-align-left samba-log", _("View SMB Script Log")."/"._("View NFS Script Log").": "._("no script is set, add one in the share's settings"));
 				}
 
 				if (($mounted) && ($is_alive) && ($is_available) && (! $is_mounting) && (! $is_unmounting)) {
@@ -962,7 +983,7 @@ switch ($_POST['action']) {
 				if ($mount['command']) {
 					$o_remotes .= "<a class='info' href='/Main/ScriptLog?i=".$mount['device']."'><i class='fa fa-align-left samba-log'></i><span>"._("View ISO File Script Log")."</span></a>";
 				} else {
-					$o_remotes .= "<i class='fa fa-align-left samba-log' disabled></i>";
+					$o_remotes .= inactive_icon("fa fa-align-left samba-log", _("View ISO File Script Log").": "._("no script is set, add one in the ISO file's settings"));
 				}
 
 				if ((! $is_mounting) && (! $is_unmounting) && ($mounted)) {
