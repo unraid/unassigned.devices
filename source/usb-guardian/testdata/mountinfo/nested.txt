@@ -1,0 +1,3 @@
+36 25 8:17 / /mnt/disks/My\040USB rw,nosuid,nodev - xfs /dev/sdb1 rw
+37 36 8:18 / /mnt/disks/My\040USB/nested rw,relatime - vfat /dev/sdb2 rw
+
