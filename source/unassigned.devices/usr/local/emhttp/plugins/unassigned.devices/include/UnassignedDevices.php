@@ -1593,11 +1593,9 @@ switch ($_POST['action']) {
 					}
 				}
 
-				/* Verify if the server shares are available using `showmount`. */
-				$result = trim(shell_exec("/usr/sbin/showmount -e ".escapeshellarg($host)." 2>/dev/null") ?? "");
-				if ($result) {
-					$names[] = strtoupper($name ?: $host);
-				}
+				/* Keep TCP 2049 candidates even when mountd is unavailable (NFSv4).
+				 * The actual mount validates the service and access to the path. */
+				$names[] = strtoupper($name ?: $host);
 			}
 		}
 
@@ -1619,8 +1617,9 @@ switch ($_POST['action']) {
 		exec(DOCROOT."/plugins/".UNASSIGNED_PLUGIN."/scripts/get_ud_stats is_online ".escapeshellarg($ip)." "."NFS");
 
 		/* List the shares. */
-		$result		= shell_exec("/usr/sbin/showmount --no-headers -e ".escapeshellarg($ip)." 2>/dev/null | rev | cut -d' ' -f2- | rev | sort");
-		echo $result ?: " ";
+		/* Legacy export discovery is optional.  NFSv4 users can enter a path manually. */
+		$result		= timed_exec(5, "/usr/sbin/showmount --no-headers -e ".escapeshellarg($ip)." 2>/dev/null | rev | cut -d' ' -f2- | rev | sort");
+		echo ($result && $result !== "command timed out") ? $result : " ";
 		break;
 
 	/* SMB SHARES */
