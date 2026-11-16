@@ -537,6 +537,8 @@ function unassigned_log($m, $debug_level = 0) {
 	}
 }
 
+require_once __DIR__."/SafeRemove.php";
+
 /* Get a list of directories at $root. */
 function listFile($root) {
 	/* Check if $root is a valid directory. */
@@ -885,6 +887,8 @@ function get_format_cmd($dev, $fs, $pool_name) {
 
 /* Format a disk. */
 function format_disk($dev, $fs, $pass, $pool_name) {
+	if (! ud_device_operation_lock($dev)) return false;
+	try {
 	global $paths;
 
 	unassigned_log("Formatting device '".$dev."'.");
@@ -1115,6 +1119,9 @@ function format_disk($dev, $fs, $pass, $pool_name) {
 	}
 
 	return $rc;
+	} finally {
+		ud_device_operation_lock($dev, true);
+	}
 }
 
 /* Get the partition designation for nvme or regular devices. */
@@ -1189,6 +1196,8 @@ function reload_partition_table($dev) {
 
 /* Remove a disk partition. */
 function remove_partition($dev, $part) {
+	if (! ud_device_operation_lock($dev)) return false;
+	try {
 	global $paths;
 
 	$rc = true;
@@ -1230,10 +1239,15 @@ function remove_partition($dev, $part) {
 	}
 
 	return $rc;
+	} finally {
+		ud_device_operation_lock($dev, true);
+	}
 }
 
 /* Remove all disk partitions. */
 function remove_all_partitions($dev) {
+	if (! ud_device_operation_lock($dev)) return false;
+	try {
 	global $paths;
 
 	$rc = true;
@@ -1315,6 +1329,9 @@ function remove_all_partitions($dev) {
 	}
 
 	return $rc;
+	} finally {
+		ud_device_operation_lock($dev, true);
+	}
 }
 
 /* Procedure to determine the time a command takes to run.  Mostly for debug purposes. */
@@ -1859,6 +1876,8 @@ function get_mount_params($fs, $dev, $ro = false, $compression = "") {
 
 /* Mount a device. */
 function do_mount($info) {
+	if (! ud_device_operation_lock(($info['luks'] ?? '') ?: $info['device'])) return false;
+	try {
 	global $var, $paths;
 
 	$rc = false;
@@ -1926,6 +1945,9 @@ function do_mount($info) {
 	}
 
 	return $rc;
+	} finally {
+		ud_device_operation_lock(($info['luks'] ?? '') ?: $info['device'], true);
+	}
 }
 
 /* Mount a disk device. */

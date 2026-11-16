@@ -1390,6 +1390,22 @@ switch ($_POST['action']) {
 		echo json_encode($return == "success");
 		break;
 
+	case 'safe_remove':
+		$state = @parse_ini_file('/var/local/emhttp/var.ini');
+		$token = (string)($state['csrf_token'] ?? '');
+		if (! $token || ! hash_equals($token, (string)($_POST['csrf_token'] ?? ''))) {
+			http_response_code(403);
+			echo json_encode(['success' => false, 'reason' => 'request']);
+			break;
+		}
+		$args = array_map('escapeshellarg', [
+			(string)($_POST['device'] ?? ''), (string)($_POST['serial'] ?? ''), (string)($_POST['sequence'] ?? '')
+		]);
+		$output = shell_exec(DOCROOT.'/plugins/'.UNASSIGNED_PLUGIN.'/scripts/rc.unassigned safe_remove '.implode(' ', $args));
+		$result = json_decode($output ?? '', true);
+		echo json_encode(is_array($result) ? $result : ['success' => false, 'reason' => 'inspection']);
+		break;
+
 	case 'umount':
 		/* Unmount a disk device. */
 		$device	= htmlspecialchars(urldecode($_POST['device']));

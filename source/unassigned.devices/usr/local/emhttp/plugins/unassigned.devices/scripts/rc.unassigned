@@ -830,19 +830,36 @@ function unassigned_spin_down($device) {
 }
 
 /* Detach the disk device. */
-function unassigned_detach($device) {
+function unassigned_detach($device, $safe = false, $sequence = "") {
 
 	$dev = MiscUD::base_device(basename($device));
+	if (! ud_device_operation_lock($device)) return false;
+	try {
 
 	if (! is_file("/tmp/unassigned.devices/shut_down")) {
 		if (is_dir("/sys/block/".$dev."/")) {
-			exec("echo 'offline' > /sys/block/{$dev}/device/state");
-			sleep(1);
-			exec("echo '1' > /sys/block/".$dev."/device/delete");
+			if ($safe) {
+				/* Pin the sysfs attribute before the last identity check. Keep the disk
+				 * online so the SCSI driver's removal path can synchronize its cache. */
+				$delete = @fopen("/sys/block/$dev/device/delete", 'w');
+				$actual = trim(@file_get_contents("/sys/block/$dev/diskseq") ?: '');
+				if (! $delete || $actual !== $sequence) {
+					if ($delete) fclose($delete);
+					return false;
+				}
+				$written = @fwrite($delete, "1\n");
+				fclose($delete);
+				if ($written !== 2) return false;
+			} else {
+				exec("echo 'offline' > /sys/block/{$dev}/device/state");
+				sleep(1);
+				exec("echo '1' > /sys/block/".$dev."/device/delete");
+			}
 
 			$i	= 0;
 			/* Wait for the device to be removed. */
-			while (is_file("/sys/block/".$dev) && ($i < 25)) {
+			while ((is_dir("/sys/block/".$dev) || ($safe && file_exists("/dev/".$dev))) && ($i < 25)) {
+				clearstatcache();
 				sleep(1);
 				$i++;
 			}
@@ -851,10 +868,15 @@ function unassigned_detach($device) {
 
 			if ($i < 25) {
 				unassigned_log("Device '/dev/".$dev."' has been detached.");
+				return true;
 			} else {
 				unassigned_log("Device '/dev/".$dev."' detach timed out.");
 			}
 		}
+	}
+	return false;
+	} finally {
+		ud_device_operation_lock($device, true);
 	}
 }
 
@@ -1010,6 +1032,12 @@ switch ($COMMAND) {
 		unassigned_spin_down($DEVNAME);
 		break;
 
+	case 'safe_remove':
+		$reason = ud_safe_remove_usb($DEVNAME, $argv[3] ?? '', $argv[4] ?? '');
+		unassigned_log("USB safe removal '".$DEVNAME."': ".($reason ?: 'success'));
+		echo json_encode(['success' => $reason === '', 'reason' => $reason]);
+		break;
+
 	case 'detach':
 		unassigned_detach($DEVNAME);
 		break;
@@ -1043,7 +1071,7 @@ switch ($COMMAND) {
 
 	default:
 		unassigned_log("Error: 'rc.unassigned {$argv[1]} {$argv[2]}' not understood");
-		unassigned_log("rc.unassigned usage: 'mount', 'umount', 'reload', 'hotplug', 'spindown', 'detach', 'attach', 'refresh'");
+		unassigned_log("rc.unassigned usage: 'mount', 'umount', 'reload', 'hotplug', 'spindown', 'detach', 'safe_remove', 'attach', 'refresh'");
 		exit(0);
 		break;
 }
