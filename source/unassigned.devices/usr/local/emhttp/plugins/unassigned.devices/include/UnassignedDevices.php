@@ -14,6 +14,7 @@ $_SERVER['REQUEST_URI'] = "unassigneddevices";
 
 /* Load the UD library file if it is not already loaded. */
 require_once("plugins/unassigned.devices/include/lib.php");
+require_once __DIR__."/SafeEject.php";
 
 if (isset($_POST['display'])) {
 	$display = $_POST['display'];
@@ -596,6 +597,8 @@ switch ($_POST['action']) {
 		/* Is parted installed? */
 		$parted					= file_exists("/usr/sbin/parted");
 
+		$safe_eject_enabled = ud_safe_eject_enabled();
+
 		/* Get updated disks info in case devices have been hot plugged. */
 		if ( count($all_disks) ) {
 			foreach ($all_disks as $disk) {
@@ -686,6 +689,7 @@ switch ($_POST['action']) {
 				$luks_lock		= $mounted ? "<i class='fa fa-unlock-alt fa-append green-orb'></i>" : "<i class='fa fa-lock fa-append grey-orb'></i>";
 				$o_disks		.= ((count($disk['partitions']) > 0) && ($disk['partitions'][0]['fstype'] == "crypto_LUKS")) ? $luks_lock : "";
 				$o_disks		.= "<a href='/Main/".$str."=".$disk_dev."'>".$disk_display."</a>";
+				$o_disks .= ud_safe_eject_control($disk, $safe_eject_enabled);
 				$o_disks		.= "</td>";
 
 				/* Device serial number. */

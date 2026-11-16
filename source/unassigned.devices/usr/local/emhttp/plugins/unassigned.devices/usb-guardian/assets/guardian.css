@@ -1,0 +1,58 @@
+.usb-guardian-control-wrap { display:inline-flex; align-items:center; gap:4px; margin-left:8px; vertical-align:middle; }
+.usb-guardian-control-status { font-size:12px; white-space:normal; }
+.usb-guardian-control[hidden] { display:none; }
+.usb-guardian-control,.usb-guardian-icon-button { display:inline-flex; align-items:center; justify-content:center; width:28px; min-width:28px; height:28px; padding:0; border:0; border-radius:4px; background:transparent; color:inherit; font-size:15px; line-height:1; cursor:pointer; }
+.usb-guardian-control:hover,.usb-guardian-control:focus-visible,.usb-guardian-icon-button:hover,.usb-guardian-icon-button:focus-visible { background:rgba(127,127,127,.16); outline:2px solid currentColor; outline-offset:1px; }
+.usb-guardian-control-ready { color:#16833b; }
+.usb-guardian-control-warning { color:#c46b00; }
+.usb-guardian-control-progress { color:#2c66a0; }
+.usb-guardian-live { display:grid; gap:8px; width:100%; min-width:0; max-width:calc(100vw - 24px); margin:0 0 12px; box-sizing:border-box; }
+.usb-guardian-live:empty { display:none; }
+.usb-guardian-notice { display:grid; grid-template-columns:24px minmax(0,1fr) auto auto; align-items:center; gap:10px; width:100%; min-width:0; max-width:100%; min-height:48px; padding:9px 12px; border-left:4px solid #547085; background:rgba(84,112,133,.1); box-sizing:border-box; }
+.usb-guardian-notice-success { border-color:#16833b; background:rgba(22,131,59,.1); }
+.usb-guardian-notice-error { border-color:#b52b32; background:rgba(181,43,50,.1); }
+.usb-guardian-notice-warning { border-color:#c46b00; background:rgba(196,107,0,.1); }
+.usb-guardian-notice-progress { border-color:#2c66a0; background:rgba(44,102,160,.1); }
+.usb-guardian-notice-icon { text-align:center; font-size:18px; }
+.usb-guardian-notice-copy { min-width:0; overflow-wrap:anywhere; }
+.usb-guardian-notice-copy strong { display:block; margin-bottom:2px; }
+.usb-guardian-notice-action,.usb-guardian-modal-actions button,.usb-guardian-settings-actions button { min-height:34px; padding:6px 12px; border:1px solid #777; border-radius:4px; background:transparent; color:inherit; cursor:pointer; white-space:nowrap; }
+.usb-guardian-notice-action:hover,.usb-guardian-notice-action:focus-visible,.usb-guardian-modal-actions button:hover,.usb-guardian-modal-actions button:focus-visible,.usb-guardian-settings-actions button:hover,.usb-guardian-settings-actions button:focus-visible { border-color:currentColor; background:rgba(127,127,127,.12); outline:2px solid currentColor; outline-offset:1px; }
+.usb-guardian-notice-dismiss { color:inherit; }
+.usb-guardian-modal-layer { position:fixed; inset:0; z-index:10050; display:flex; align-items:center; justify-content:center; padding:16px; background:rgba(0,0,0,.58); }
+.usb-guardian-modal { width:min(620px,100%); max-height:min(760px,calc(100vh - 32px)); overflow:auto; border:1px solid #777; border-radius:6px; background:#fff; color:#222; box-shadow:0 12px 36px rgba(0,0,0,.35); }
+.theme--dark .usb-guardian-modal,body.dark .usb-guardian-modal,body.black .usb-guardian-modal,body.gray .usb-guardian-modal,body.azure .usb-guardian-modal { background:#242729; color:#f3f3f3; }
+.usb-guardian-modal-header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; border-bottom:1px solid rgba(127,127,127,.45); }
+.usb-guardian-modal-header h2 { min-width:0; margin:0; font-size:19px; line-height:1.3; overflow-wrap:anywhere; }
+.usb-guardian-modal-body { padding:16px; }
+.usb-guardian-modal-body>p:first-child { margin-top:0; }
+.usb-guardian-reason-list { display:grid; gap:12px; }
+.usb-guardian-reason { padding-left:12px; border-left:3px solid #c46b00; }
+.usb-guardian-reason strong,.usb-guardian-reason-detail,.usb-guardian-reason-advice { display:block; overflow-wrap:anywhere; }
+.usb-guardian-reason-detail { margin-top:4px; opacity:.86; }
+.usb-guardian-reason-advice { margin-top:6px; color:#227348; }
+.theme--dark .usb-guardian-reason-advice,body.dark .usb-guardian-reason-advice,body.black .usb-guardian-reason-advice,body.gray .usb-guardian-reason-advice,body.azure .usb-guardian-reason-advice { color:#70d19b; }
+.usb-guardian-modal-actions { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:8px; padding:12px 16px; border-top:1px solid rgba(127,127,127,.45); }
+.usb-guardian-modal-actions .usb-guardian-primary { border-color:#16833b; background:#16833b; color:#fff; }
+.usb-guardian-settings { width:min(980px,100%); }
+.usb-guardian-settings-section { padding:4px 0 20px; border-bottom:1px solid rgba(127,127,127,.35); }
+.usb-guardian-settings-section h2 { margin:16px 0 10px; font-size:18px; }
+.usb-guardian-settings-section dl { display:grid; grid-template-columns:minmax(180px,280px) minmax(220px,1fr); gap:10px 18px; align-items:center; margin:0; }
+.usb-guardian-settings-section dt,.usb-guardian-settings-section dd { min-width:0; margin:0; }
+.usb-guardian-settings-section input[type=number],.usb-guardian-settings-section select { width:min(220px,100%); }
+.usb-guardian-path-line { margin:14px 0 0; overflow-wrap:anywhere; }
+.usb-guardian-path-line code { user-select:all; }
+.usb-guardian-settings-actions { display:flex; flex-wrap:wrap; gap:8px; margin:18px 0; }
+.usb-guardian-settings-actions button:disabled { cursor:wait; opacity:.6; }
+.usb-guardian-settings-actions .usb-guardian-danger { border-color:#b52b32; color:#b52b32; }
+.usb-guardian-settings-notice { display:none; margin:0 0 12px; padding:10px 12px; border-left:4px solid #547085; overflow-wrap:anywhere; }
+.usb-guardian-settings-notice:not(:empty) { display:block; }
+.usb-guardian-settings-notice-success { border-color:#16833b; background:rgba(22,131,59,.1); }
+.usb-guardian-settings-notice-error { border-color:#b52b32; background:rgba(181,43,50,.1); }
+.usb-guardian-settings-notice-progress { border-color:#2c66a0; background:rgba(44,102,160,.1); }
+@media (max-width:720px) {
+  .usb-guardian-notice { grid-template-columns:24px minmax(0,1fr) auto; }
+  .usb-guardian-notice-action { grid-column:2/-1; justify-self:start; }
+  .usb-guardian-settings-section dl { grid-template-columns:1fr; gap:5px; }
+  .usb-guardian-settings-section dd { margin-bottom:8px; }
+}

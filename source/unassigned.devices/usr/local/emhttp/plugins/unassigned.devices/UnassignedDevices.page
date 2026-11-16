@@ -16,6 +16,8 @@ Tag="unlink"
 
 /* Load the UD library file if it is not already loaded. */
 require_once("plugins/unassigned.devices/include/lib.php");
+require_once "plugins/unassigned.devices/include/SafeEject.php";
+$safe_eject_enabled = ud_safe_eject_enabled();
 
 /* See if NFS and SMB sharing is enabled. */
 $disabled = (($var['shareNFSEnabled'] == "no") && ($var['shareSMBEnabled'] == "no")) ? "disabled" : "";
@@ -69,6 +71,19 @@ $isUser0	= is_dir("/mnt/user0/");
   }
 </style>
 <?endif;?>
+
+<?php if ($safe_eject_enabled):
+$guardianRuntime = [
+    'apiUrl' => '/plugins/unassigned.devices/usb-guardian/api.php',
+    'csrfToken' => (string)($var['csrf_token'] ?? ''),
+    'settingsUrl' => '/Settings/UnassignedDevicesSafeEject',
+    'i18n' => usb_guardian_catalog(),
+];
+?>
+<link rel="stylesheet" href="<?autov('/plugins/unassigned.devices/usb-guardian/assets/guardian.css')?>">
+<script>window.UsbGuardianRuntime = Object.freeze(<?=json_encode($guardianRuntime, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)?>);</script>
+<script src="<?autov('/plugins/unassigned.devices/usb-guardian/assets/guardian.js')?>"></script>
+<?php endif; ?>
 
 <script>
 	/* Initialize PHP variables passed to JavaScript */
@@ -308,6 +323,7 @@ $isUser0	= is_dir("/mnt/user0/");
 		}).get();
 
 		$('#disk-table-body').html(data.disks);
+		window.UDSafeEject?.refreshControls();
 		$('#remotes-table-body').html(data.remotes);
 		$('#historical-table-body').html(data.historical);
 
@@ -785,6 +801,7 @@ $isUser0	= is_dir("/mnt/user0/");
 		<span class='left'><img src='/plugins/<?=UNASSIGNED_PLUGIN;?>/icons/disk.png' class='icon'><?=_('Unassigned Disk Devices')?></span>
 	</div>
 
+	<div id="usb-guardian-live" class="usb-guardian-live" aria-live="polite" aria-atomic="true"></div>
 	<table id='usb_devices_list' class='usb_mounts'>
 		<thead>
 			<tr>

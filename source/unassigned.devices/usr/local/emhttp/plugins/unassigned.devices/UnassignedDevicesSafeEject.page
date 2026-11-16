@@ -1,0 +1,80 @@
+Menu="UnassignedDevicesSettings"
+Title="USB Safe Eject"
+Icon="eject"
+---
+<?php
+require_once '/usr/local/emhttp/plugins/unassigned.devices/usb-guardian/include/localization.php';
+$guardianVar = $var ?? @parse_ini_file('/var/local/emhttp/var.ini') ?: [];
+$guardianSettingsRuntime = [
+    'apiUrl' => '/plugins/unassigned.devices/usb-guardian/api.php',
+    'csrfToken' => (string)($guardianVar['csrf_token'] ?? ''),
+    'i18n' => usb_guardian_catalog(),
+];
+?>
+<link rel="stylesheet" href="<?autov('/plugins/unassigned.devices/usb-guardian/assets/guardian.css')?>">
+
+<?php if (is_dir('/usr/local/emhttp/plugins/usb.guardian')): ?>
+<p role="status"><?=usb_guardian_h('Remove the standalone USB Guardian plugin from Plugins to use built-in USB safe eject. Existing plugin data is retained.')?></p>
+<?php endif; ?>
+
+<div id="usb-guardian-settings" class="usb-guardian-settings">
+  <div id="usb-guardian-settings-notice" class="usb-guardian-settings-notice" role="status" aria-live="polite"></div>
+
+  <form id="usb-guardian-settings-form" autocomplete="off">
+    <section class="usb-guardian-settings-section" aria-labelledby="guardian-general-heading">
+      <h2 id="guardian-general-heading"><?=usb_guardian_h('General')?></h2>
+      <dl>
+        <dt><?=usb_guardian_h('Enable USB safe eject')?></dt>
+        <dd><label><input type="checkbox" name="ENABLED" value="yes"> <?=usb_guardian_h('Enabled')?></label></dd>
+      </dl>
+    </section>
+
+    <section class="usb-guardian-settings-section" aria-labelledby="guardian-logging-heading">
+      <h2 id="guardian-logging-heading"><?=usb_guardian_h('Diagnostic logging')?></h2>
+      <dl>
+        <dt><?=usb_guardian_h('Log level')?></dt>
+        <dd>
+          <select name="LOG_LEVEL">
+            <option value="info"><?=usb_guardian_h('Info')?></option>
+            <option value="debug"><?=usb_guardian_h('Debug')?></option>
+          </select>
+        </dd>
+        <dt><?=usb_guardian_h('Persistent logging')?></dt>
+        <dd>
+          <label><input type="checkbox" checked disabled> <?=usb_guardian_h('Enabled')?></label>
+          <input type="hidden" name="PERSISTENT_LOGGING" value="yes">
+        </dd>
+        <dt><?=usb_guardian_h('Log retention')?></dt>
+        <dd><input type="number" name="LOG_RETENTION_DAYS" min="7" max="365" step="1"> <?=usb_guardian_h('days')?></dd>
+        <dt><?=usb_guardian_h('Maximum log size')?></dt>
+        <dd><input type="number" name="MAX_LOG_MIB" min="32" max="2048" step="1"> MiB</dd>
+        <dt><?=usb_guardian_h('Retained operation logs')?></dt>
+        <dd><input type="number" name="LOG_KEEP" min="5" max="100" step="1"></dd>
+      </dl>
+      <p class="usb-guardian-path-line"><strong><?=usb_guardian_h('Logs after reboot')?>:</strong> <code>/boot/config/plugins/unassigned.devices/usb-guardian/logs/</code></p>
+    </section>
+
+    <section class="usb-guardian-settings-section" aria-labelledby="guardian-safety-heading">
+      <h2 id="guardian-safety-heading"><?=usb_guardian_h('Safety verification')?></h2>
+      <dl>
+        <dt><?=usb_guardian_h('Device settle time')?></dt>
+        <dd><input type="number" name="SETTLE_SECONDS" min="2" max="60" step="1"> <?=usb_guardian_h('seconds')?></dd>
+        <dt><?=usb_guardian_h('shfs health window')?></dt>
+        <dd><input type="number" name="SHFS_HEALTH_SECONDS" min="2" max="60" step="1"> <?=usb_guardian_h('seconds')?></dd>
+        <dt><?=usb_guardian_h('SCSI cache synchronization')?></dt>
+        <dd><label><input type="checkbox" name="ENABLE_SG_IO" value="yes"> <?=usb_guardian_h('Enabled')?></label></dd>
+      </dl>
+    </section>
+
+    <div class="usb-guardian-settings-actions">
+      <button type="submit"><i class="fa fa-save" aria-hidden="true"></i> <?=usb_guardian_h('Apply')?></button>
+      <button type="button" id="usb-guardian-download-diagnostics"><i class="fa fa-download" aria-hidden="true"></i> <?=usb_guardian_h('Download diagnostics')?></button>
+      <button type="button" id="usb-guardian-clear-logs" class="usb-guardian-danger"><i class="fa fa-trash" aria-hidden="true"></i> <?=usb_guardian_h('Clear logs')?></button>
+    </div>
+  </form>
+</div>
+
+<script>
+window.UsbGuardianSettingsRuntime = Object.freeze(<?=json_encode($guardianSettingsRuntime, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)?>);
+</script>
+<script src="<?autov('/plugins/unassigned.devices/usb-guardian/assets/settings.js')?>"></script>
