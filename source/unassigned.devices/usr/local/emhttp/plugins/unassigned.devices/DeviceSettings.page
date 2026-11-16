@@ -1213,6 +1213,8 @@ _(User Script)_:
 			serial: button.dataset.serial, sequence: button.dataset.sequence,
 			csrf_token: <?=json_encode((string)($var['csrf_token'] ?? ''));?>
 		}, null, 'json').done(function (result) {
+			if (! result || typeof result.success !== 'boolean' || typeof result.reason !== 'string' ||
+				(result.success && result.reason !== '')) result = {success: false, reason: 'inspection'};
 			status.text(result.success === true ? text.done : (text[result.reason] || text.inspection));
 			if (result.success !== true) $(button).prop('disabled', false);
 		}).fail(function () {

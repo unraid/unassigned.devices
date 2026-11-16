@@ -9,6 +9,12 @@ $rc = str_replace("\r\n", "\n", $rc);
 $start = strpos($rc, 'function unassigned_detach(');
 $end = strpos($rc, "\n}\n", $start);
 eval('namespace '.__NAMESPACE__.';'.substr($rc, $start, $end - $start + 2));
+$lib = str_replace("\r\n", "\n", file_get_contents($plugin.'/include/lib.php'));
+foreach (['format_disk', 'remove_partition', 'remove_all_partitions', 'do_mount'] as $function) {
+	$start = strpos($lib, 'function '.$function.'(');
+	$end = strpos($lib, "\n}\n", $start);
+	eval('namespace '.__NAMESPACE__.';'.substr($lib, $start, $end - $start + 2));
+}
 $root = sys_get_temp_dir().'/ud-remove-'.bin2hex(random_bytes(6));
 $checks = 0;
 function check($actual, $expected, $name) {
@@ -70,11 +76,13 @@ function fwrite($handle, $text) {
 }
 function sleep($seconds) { return 0; }
 function usleep($microseconds) { }
-function fsync($handle) { global $io; return empty($io['fsync_error']); }
 function proc_open($args, $descriptors, &$pipes) {
 	global $io;
-	check($args, ['/bin/dd', 'of=/dev/sdb', 'oflag=excl,nocreat,nonblock', 'conv=notrunc', 'status=none'], 'non-writing exclusive claim');
+	check(array_slice($args, 1), ['/dev/sdb', '123'], 'claim receives device and disk sequence');
+	check(basename($args[0]), 'usb-device-claim', 'native exclusive helper');
 	$pipes = [tmpfile(), tmpfile(), tmpfile()];
+	$message = !empty($io['exclusive_busy']) ? 'busy' : (!empty($io['fsync_error']) ? 'flush' : 'ready');
+	if (empty($io['exclusive_timeout'])) { \fwrite($pipes[1], $message."\n"); rewind($pipes[1]); }
 	return tmpfile();
 }
 function proc_get_status($handle) {
@@ -82,10 +90,7 @@ function proc_get_status($handle) {
 	return ['pid' => 42, 'running' => empty($io['exclusive_busy']), 'exitcode' => 1];
 }
 function proc_close($handle) { fclose($handle); return 0; }
-function readlink($path) {
-	global $io;
-	return empty($io['exclusive_timeout']) ? '/dev/sdb' : false;
-}
+function proc_terminate($handle) { return true; }
 function unassigned_log($text) { }
 function get_all_disks_info() {
 	global $disk, $io;
@@ -109,11 +114,12 @@ function parse_ini_file($path, $sections = false, $mode = INI_SCANNER_NORMAL) {
 	return \parse_ini_file($path, $sections, $mode);
 }
 function shell_exec($cmd) { return '{"success":true,"reason":""}'; }
+function do_mount_local($info) { return false; }
 $sys = "$root/sys";
 $proc = "$root/proc";
 $block = "$sys/class/block/sdb";
 $disk = ['device' => '/dev/sdb', 'serial' => 'USB_TEST', 'id_bus' => 'usb',
-	'partitions' => [['fstype' => 'ext4', 'label' => 'DATA']]];
+	'partitions' => [['device' => '/dev/sdb1', 'fstype' => 'ext4', 'label' => 'DATA']]];
 $inspect = fn($d = null, $serial = 'USB_TEST', $seq = '123') =>
 	ud_usb_remove_check($d ?? $disk, $serial, $seq, $sys, $proc);
 try {
@@ -142,10 +148,23 @@ try {
 	$part = $disk;
 	$part['partitions'][0]['label'] = 'UNRAID';
 	check($inspect($part), 'protected', 'boot label');
-	foreach (['crypto_LUKS', 'zfs', 'btrfs', 'apfs'] as $fs) {
-		$part['partitions'][0] = ['fstype' => $fs];
+	foreach (['crypto_LUKS', 'zfs', 'zfs_member', 'btrfs', 'apfs'] as $fs) {
+		$part['partitions'][0] = ['device' => '/dev/sdb1', 'fstype' => $fs];
 		check($inspect($part), 'unsupported', $fs);
+		check($inspect(array_replace($disk, ['fstype' => $fs])), 'unsupported', 'whole-disk '.$fs);
 	}
+	check($inspect(array_replace($disk, ['not_udev' => true])), 'inspection', 'stale disk metadata');
+	$part = $disk;
+	$part['partitions'][0]['not_udev'] = true;
+	check($inspect($part), 'inspection', 'stale partition metadata');
+	$part['partitions'][0] = [];
+	check($inspect($part), 'inspection', 'missing partition metadata');
+	$part['partitions'] = [];
+	check($inspect($part), 'inspection', 'undiscovered kernel partition');
+	$part['partitions'][0] = ['device' => '/dev/sdb2', 'fstype' => 'ext4'];
+	check($inspect($part), 'inspection', 'partition identity mismatch');
+	$part['partitions'][0] = ['device' => '/dev/sdb1', 'fstype' => 'ext4', 'file_system' => 'btrfs'];
+	check($inspect($part), 'unsupported', 'unsupported live filesystem');
 	put("$block/sdb1/holders/dm-0", '');
 	check($inspect(), 'busy', 'device-mapper holder');
 	unlink("$block/sdb1/holders/dm-0");
@@ -181,6 +200,8 @@ try {
 		[['fsync_error' => true], 'flush', 0],
 		[['second_scan' => ['mounted' => true]], 'busy', 0],
 		[['second_scan' => ['serial' => 'REPLACEMENT']], 'changed', 0],
+		[['second_scan' => ['not_udev' => true]], 'inspection', 0],
+		[['second_scan' => ['partitions' => []]], 'inspection', 0],
 		[['exclusive_busy' => true], 'busy', 0],
 		[['exclusive_timeout' => true], 'inspection', 0],
 		[['write_error' => true], 'detach', 1],
@@ -197,6 +218,33 @@ try {
 	$lock = \fopen("$root/var/lock/unassigned.devices-sdb.lock", 'c');
 	flock($lock, LOCK_EX);
 	check(ud_safe_remove_usb('/dev/sdb', 'USB_TEST', '123'), 'busy', 'concurrent operation');
+	check(format_disk('/dev/sdb', 'ext4', '', ''), false, 'format honors removal lock');
+	check(remove_partition('/dev/sdb', '1'), false, 'partition removal honors removal lock');
+	check(remove_all_partitions('/dev/sdb'), false, 'disk clearing honors removal lock');
+	check(do_mount(['device' => '/dev/sdb1', 'fstype' => 'ext4']), false, 'partition mount honors disk lock');
+	check(do_mount(['device' => '/dev/mapper/test', 'luks' => '/dev/sdb1', 'fstype' => 'crypto_LUKS']), false, 'encrypted mount honors physical disk lock');
+	fclose($lock);
+	$disk['partitions'][0]['target'] = '/busy';
+	$disk['partitions'][0]['part'] = '1';
+	$io = ['scans' => 0];
+	foreach ([
+		fn() => format_disk('/dev/sdb', 'ext4', '', ''),
+		fn() => remove_partition('/dev/sdb', '1'),
+		fn() => remove_all_partitions('/dev/sdb'),
+		fn() => do_mount(['device' => '/dev/sdb1', 'fstype' => 'ext4'])
+	] as $operation) {
+		check($operation(), false, 'native operation failure');
+		$lock = \fopen("$root/var/lock/unassigned.devices-sdb.lock", 'c');
+		check(flock($lock, LOCK_EX | LOCK_NB), true, 'native operation releases lock on failure');
+		fclose($lock);
+	}
+	check(ud_device_operation_lock('/dev/sdb'), true, 'outer operation lock');
+	check(ud_device_operation_lock('/dev/sdb1'), true, 'nested partition operation lock');
+	ud_device_operation_lock('/dev/sdb1', true);
+	$lock = \fopen("$root/var/lock/unassigned.devices-sdb.lock", 'c');
+	check(flock($lock, LOCK_EX | LOCK_NB), false, 'nested release retains outer lock');
+	ud_device_operation_lock('/dev/sdb', true);
+	check(flock($lock, LOCK_EX | LOCK_NB), true, 'outer release frees lock');
 	fclose($lock);
 	/* Execute the actual native endpoint's new case, including its CSRF gate. */
 	define(__NAMESPACE__.'\DOCROOT', '/mock');

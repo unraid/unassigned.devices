@@ -17,14 +17,21 @@ let checks = 0;
 for (const locale of ['en_US', 'zh_CN']) {
   const php = spawnSync(process.env.PHP_BIN || 'php', ['-d', 'short_open_tag=1', '-r', render, plugin, locale], {encoding: 'utf8'});
   assert.equal(php.status, 0, php.stderr);
-  for (const scenario of ['cancel', 'success', 'busy', 'mounted', 'flush', 'detach', 'inspection', 'unknown', 'network']) {
+  for (const scenario of ['cancel', 'success', 'busy', 'mounted', 'flush', 'detach', 'inspection', 'unknown', 'network', 'null', 'missing', 'wrong-type', 'inconsistent']) {
     let status = '', disabled = false, request, confirmation;
     const button = {dataset: {device: '/dev/sdb', serial: 'USB_TEST', sequence: '123'}};
     const $ = target => target === button ? {prop: (name, value) => { disabled = value; }} : {text: value => { status = value; }};
     $.post = (url, payload) => {
       request = payload;
       return {
-        done(fn) { if (scenario !== 'network') fn({success: scenario === 'success', reason: scenario}); return this; },
+        done(fn) {
+          const result = scenario === 'null' ? null : scenario === 'missing' ? {} :
+            scenario === 'wrong-type' ? {success: 'true', reason: ''} :
+            scenario === 'inconsistent' ? {success: true, reason: 'detach'} :
+            {success: scenario === 'success', reason: scenario === 'success' ? '' : scenario};
+          if (scenario !== 'network') fn(result);
+          return this;
+        },
         fail(fn) { if (scenario === 'network') fn(); return this; }
       };
     };

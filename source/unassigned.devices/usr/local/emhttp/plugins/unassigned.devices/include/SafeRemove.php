@@ -36,16 +36,19 @@ function ud_usb_remove_check($disk, $serial, $sequence, $sys = '/sys', $proc = '
 	$block = "$sys/class/block/$dev";
 	$actual = trim(@file_get_contents("$block/diskseq") ?: '');
 	if (! ctype_digit($sequence) || $actual !== $sequence) return 'changed';
+	if (! empty($disk['not_udev'])) return 'inspection';
 	foreach (['array_disk', 'pool_disk', 'pass_through', 'preclearing', 'formatting', 'clearing',
 		'mounting', 'unmounting', 'running', 'mounted', 'not_unmounted'] as $flag) {
 		if (! empty($disk[$flag])) return 'busy';
 	}
 	foreach ($disk['partitions'] ?? [] as $part) {
+		if (! is_array($part) || ! isset($part['device'], $part['fstype']) || ! empty($part['not_udev'])) return 'inspection';
 		if (($part['label'] ?? '') === 'UNRAID' || ! empty($part['array_disk'])) return 'protected';
 		if (! empty($part['pool']) || ! empty($part['running']) ||
-			in_array($part['fstype'] ?? '', ['crypto_LUKS', 'zfs', 'btrfs', 'apfs'])) return 'unsupported';
+			in_array($part['fstype'], ['crypto_LUKS', 'zfs', 'zfs_member', 'btrfs', 'apfs']) ||
+			in_array($part['file_system'] ?? '', ['crypto_LUKS', 'zfs', 'zfs_member', 'btrfs', 'apfs'])) return 'unsupported';
 	}
-	if (in_array($disk['fstype'] ?? '', ['crypto_LUKS', 'zfs', 'btrfs', 'apfs'])) return 'unsupported';
+	if (in_array($disk['fstype'] ?? '', ['crypto_LUKS', 'zfs', 'zfs_member', 'btrfs', 'apfs'])) return 'unsupported';
 	$usb = realpath($block);
 	while ($usb && $usb !== dirname($usb) && ! is_file("$usb/idVendor")) $usb = dirname($usb);
 	if (! $usb || ! is_file("$usb/idVendor") || ! is_file("$usb/remove")) return 'unsupported';
@@ -61,7 +64,14 @@ function ud_usb_remove_check($disk, $serial, $sequence, $sys = '/sys', $proc = '
 	}
 	$nodes = [$block];
 	foreach (glob("$block/$dev*") ?: [] as $part) {
-		if (is_file("$part/partition")) $nodes[] = $part;
+		if (! is_file("$part/partition")) continue;
+		/* Discovery must account for every kernel partition, even if udev is late. */
+		$known = false;
+		foreach ($disk['partitions'] ?? [] as $info) {
+			if (basename(($info['luks'] ?? '') ?: $info['device']) === basename($part)) $known = true;
+		}
+		if (! $known) return 'inspection';
+		$nodes[] = $part;
 	}
 	$numbers = [];
 	foreach ($nodes as $node) {
@@ -137,29 +147,28 @@ function ud_safe_remove_usb($device, $serial, $sequence) {
 				/* Flush block buffers before removal; never offline the SCSI device first. */
 				exec('/usr/bin/timeout 15 /sbin/blockdev --flushbufs '.$args.' 2>&1', $output, $status);
 				if ($status !== 0) return 'flush';
-				$buffer = @fopen($device, 'r+');
-				$flushed = $buffer && function_exists('fsync') && @fsync($buffer);
-				if ($buffer) fclose($buffer);
-				if (! $flushed) return 'flush';
 			}
 		}
-		/* dd opens with O_EXCL but receives no input, so it writes no data. nocreat
-		 * and notrunc are essential. Keep stdin open to hold the kernel claim until
-		 * detach completes, including mounts in namespaces without a live process. */
-		$claim = @proc_open(['/bin/dd', 'of='.$device, 'oflag=excl,nocreat,nonblock', 'conv=notrunc', 'status=none'],
+		/* PHP cannot request O_EXCL for a block device. The small read-only helper
+		 * verifies diskseq on its open handle, fsyncs it and holds the kernel claim
+		 * until stdin closes, including against mounts in orphaned namespaces. */
+		$claim = @proc_open([__DIR__.'/../scripts/usb-device-claim', $device, $sequence],
 			[0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
 		if (! is_resource($claim)) return 'inspection';
+		stream_set_blocking($pipes[1], false);
 		$ready = false;
-		for ($i = 0; $i < 200; $i++) {
+		for ($i = 0; $i < 2000; $i++) {
+			$message = trim(fgets($pipes[1]) ?: '');
 			$state = proc_get_status($claim);
-			if (! $state['running']) return $state['exitcode'] === 1 ? 'busy' : 'inspection';
-			if (@readlink('/proc/'.$state['pid'].'/fd/1') === $device) {
+			if (in_array($message, ['busy', 'changed', 'flush', 'inspection'], true)) return $message;
+			if (! $state['running']) return 'inspection';
+			if ($message === 'ready') {
 				$ready = true;
 				break;
 			}
 			usleep(10000);
 		}
-		if (! $ready) return 'inspection';
+		if (! $ready) { proc_terminate($claim); return 'inspection'; }
 		return unassigned_detach($device, true, $sequence) ? '' : 'detach';
 	} finally {
 		// Closing an empty stdin supplies EOF; no bytes are ever sent to the disk.

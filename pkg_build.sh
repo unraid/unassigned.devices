@@ -9,6 +9,7 @@ cd /tmp/GitHub/unassigned.devices/source/unassigned.devices/
 chmod 0755 -R .
 cp --parents -f $(find . -type f ! \( -iname "pkg_build.sh" -o -iname "sftp-config.json"  \) ) $tmpdir/
 cd $tmpdir
+cc -O2 -Wall -Wextra -Werror /tmp/GitHub/unassigned.devices/tools/usb-device-claim.c -o usr/local/emhttp/plugins/unassigned.devices/scripts/usb-device-claim || exit 1
 makepkg -l y -c y /tmp/GitHub/unassigned.devices/archive/unassigned.devices-${version}-x86_64-1.txz
 rm -rf $tmpdir
 echo "MD5 Unassigned Devices::"
