@@ -7,3 +7,6 @@ fi
 
 # Run network check and automount of remote shares in the background
 ${DOCROOT}/plugins/unassigned.devices/scripts/rc.started & disown
+
+# Recover interrupted USB safe-eject transactions independently of network startup.
+${DOCROOT}/plugins/unassigned.devices/usb-guardian/scripts/start &

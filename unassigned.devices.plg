@@ -2414,6 +2414,16 @@ This plugin lets you manage disks and remote shares outside of the array.
 Get the plugin bundle.
 -->
 
+<FILE Run="/bin/bash">
+<INLINE>
+# Guard the currently installed core before upgradepkg replaces its files.
+safe_eject_guard="/usr/local/emhttp/plugins/&name;/usb-guardian/scripts/lifecycle.php"
+if [ -f "$safe_eject_guard" ]; then
+  /usr/bin/php "$safe_eject_guard" prepare || exit 1
+fi
+</INLINE>
+</FILE>
+
 <FILE Name="/boot/config/plugins/&name;/&name;-&version;-x86_64-1.txz" Run="upgradepkg --install-new --reinstall">
 <URL>&gitURL;/archive/&name;-&version;-x86_64-1.txz</URL>
 <MD5>&MD5;</MD5>
@@ -2650,6 +2660,11 @@ fi
 
 echo ""
 echo "-----------------------------------------------------------"
+# Recovery also runs on installation/update while the array is already started.
+if ! /usr/local/emhttp/plugins/&name;/usb-guardian/scripts/start; then
+  echo "USB safe-eject recovery needs attention; new operations remain blocked."
+fi
+
 echo " &name; has been installed."
 echo " Copyright 2015, gfjardim"
 echo " Copyright 2016-2025, &author;"
@@ -2674,6 +2689,11 @@ The 'remove' script.
 -->
 <FILE Run="/bin/bash" Method="remove">
 <INLINE>
+# Refuse removal before unmounting anything while a USB eject is in progress.
+if [ -f /usr/local/emhttp/plugins/&name;/usb-guardian/scripts/lifecycle.php ]; then
+  /usr/bin/php /usr/local/emhttp/plugins/&name;/usb-guardian/scripts/lifecycle.php prepare || exit 1
+fi
+
 # umount disks and smb mounts
 /usr/local/emhttp/plugins/&name;/scripts/rc.unassigned umount all 2>/dev/null
 
