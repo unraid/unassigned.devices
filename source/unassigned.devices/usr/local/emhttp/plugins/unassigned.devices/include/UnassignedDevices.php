@@ -251,7 +251,7 @@ function render_partition($disk, $partition, $disk_line = false) {
 		$serial				= $partition['serial'];
 		$id_bus				= $disk['id_bus'];
 		if (! $disk['array_disk']) {
-			$out[]			= "<td><a class='info' href='/Main/DeviceSettings?s=".$serial."&b=".$device."&f=".$fstype."&l=".htmlspecialchars($partition['mountpoint'])."&n=".($mounted_disk || $mounting_disk || $unmounting_disk)."&p=".$partition['part']."&m=".json_encode($partition)."&t=".$disk_line."&u=".$id_bus."'><i class='fa fa-gears'></i><span class='help-title'>$title</span></a></td>";
+			$out[]			= "<td><a class='info' href='/Main/EditDeviceSettings?s=".$serial."&b=".$device."&f=".$fstype."&l=".htmlspecialchars($partition['mountpoint'])."&n=".($mounted_disk || $mounting_disk || $unmounting_disk)."&p=".$partition['part']."&m=".json_encode($partition)."&t=".$disk_line."&u=".$id_bus."'><i class='fa fa-gears'></i><span class='help-title'>$title</span></a></td>";
 		} else {
 			$out[]			= "<td><i class='fa fa-gears' disabled></i></td>";
 		}
@@ -312,7 +312,7 @@ function render_partition($disk, $partition, $disk_line = false) {
 					$id_bus			= "";
 
 					if (($z['active']) && ($fstype)) {
-						$out[]		= "<td><a class='info' href='/Main/DeviceSettings?s=".$serial."&b=".$volume."&f=".$z['fstype']."&l=".htmlspecialchars($z['mountpoint'])."&n=".$z['mounted']."&p=".$volume."&m=".json_encode($z)."&t=false&u=".$id_bus."'><i class='fa fa-gears'></i><span class='help-title'>$title</span></a></td>";
+						$out[]		= "<td><a class='info' href='/Main/EditDeviceSettings?s=".$serial."&b=".$volume."&f=".$z['fstype']."&l=".htmlspecialchars($z['mountpoint'])."&n=".$z['mounted']."&p=".$volume."&m=".json_encode($z)."&t=false&u=".$id_bus."'><i class='fa fa-gears'></i><span class='help-title'>$title</span></a></td>";
 						$out[]		= "<td>".$fstype."</td>";
 						$out[]		= "<td>".my_scale($z['size'], $unit)." $unit</td>";
 					} else {
@@ -905,7 +905,7 @@ switch ($_POST['action']) {
 				/* Settings icon table element. */
 				$o_remotes			.= "<td>";
 				if (! $mount['invalid']) {
-					$o_remotes		.= "<a class='info' href='/Main/DeviceSettings?d=".$mount['device']."&l=".htmlspecialchars($mount['mountpoint'])."&n=".($mounted || $is_mounting || $is_unmounting)."&j=".$mount['name']."&m=".json_encode($mount)."'><i class='fa fa-gears'></i><span class='help-title'>$title</span></a>";
+					$o_remotes		.= "<a class='info' href='/Main/EditDeviceSettings?d=".$mount['device']."&l=".htmlspecialchars($mount['mountpoint'])."&n=".($mounted || $is_mounting || $is_unmounting)."&j=".$mount['name']."&m=".json_encode($mount)."'><i class='fa fa-gears'></i><span class='help-title'>$title</span></a>";
 				} else {
 					$o_remotes		.= "<i class='fa fa-gears disabled'>";
 				}
@@ -1041,7 +1041,7 @@ switch ($_POST['action']) {
 				/* Device settings table element. */
 				$o_remotes			.= "<td>";
 				if (! $mount['invalid']) {
-					$o_remotes		.= "<a class='info' href='/Main/DeviceSettings?i=".$device."&l=".htmlspecialchars($mount['mountpoint'])."&n=".($mounted || $is_mounting || $is_unmounting)."&j=".$mount['file']."'><i class='fa fa-gears'></i><span class='help-title'>$title</span></a>";
+					$o_remotes		.= "<a class='info' href='/Main/EditDeviceSettings?i=".$device."&l=".htmlspecialchars($mount['mountpoint'])."&n=".($mounted || $is_mounting || $is_unmounting)."&j=".$mount['file']."'><i class='fa fa-gears'></i><span class='help-title'>$title</span></a>";
 				} else {
 					$o_remotes		.= "<i class='fa fa-gears' disabled></i>";
 				}
@@ -1143,7 +1143,7 @@ switch ($_POST['action']) {
 
 			/* Device settings table element. */
 			$o_historical	.= "<td>";
-			$o_historical	.= "<a class='info' href='/Main/DeviceSettings?s=".$historical[$disk_display]['serial']."&l=".htmlspecialchars($historical[$disk_display]['mountpoint'])."&p="."1"."&t=true'><i class='fa fa-gears'></i><span>"._("Historical Device Settings and Script")."</span></a>";
+			$o_historical	.= "<a class='info' href='/Main/EditDeviceSettings?s=".$historical[$disk_display]['serial']."&l=".htmlspecialchars($historical[$disk_display]['mountpoint'])."&p="."1"."&t=true'><i class='fa fa-gears'></i><span>"._("Historical Device Settings and Script")."</span></a>";
 			$o_historical	.= "</td>";
 
 
