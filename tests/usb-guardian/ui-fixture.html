@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UD native USB safe-eject preview</title>
+  <link rel="stylesheet" href="/source/unassigned.devices/usr/local/emhttp/plugins/unassigned.devices/usb-guardian/assets/guardian.css">
+  <style>
+    .fa-eject::before { content:"⏏"; }
+    .fa-circle-o-notch::before { content:"◌"; }
+    h1 { font-size:24px; }
+    @media (prefers-color-scheme: dark) { body { background:#1b1c1e!important; color:#eee!important; } }
+    body { margin:24px; color:#222; background:#fff; font:14px Arial,sans-serif; }
+    .fixture-toolbar { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+    .fixture-toolbar button { min-height:32px; padding:5px 10px; }
+    table { width:100%; border-collapse:collapse; }
+    th,td { padding:9px; border-bottom:1px solid #bbb; text-align:left; }
+  </style>
+</head>
+<body>
+  <h1>Unassigned Devices</h1>
+  <p>USB safe eject — native controls preview, simulated hardware</p>
+  <div class="fixture-toolbar">
+    <button id="fixture-return" type="button">Simulate returned device</button>
+    <button id="fixture-resume-burst" type="button">Burst resume events</button>
+    <button id="fixture-storage-revoke" type="button">Simulate cross-tab revoke</button>
+    <button id="fixture-redraw-burst" type="button">Burst UD redraws</button>
+    <button id="fixture-reset-counts" type="button">Reset API counts</button>
+    <output id="fixture-counts" aria-live="polite"></output>
+  </div>
+  <div id="usb-guardian-live" class="usb-guardian-live" aria-live="polite" aria-atomic="true"></div>
+  <table aria-label="Unassigned Disk Devices">
+    <thead><tr><th>Device</th><th>Identification</th><th>Mount</th></tr></thead>
+    <tbody id="disk-table-body">
+      <tr class="toggle-disk" data-fixture-device="sdb">
+        <td>Flash Backup<span class="usb-guardian-control-wrap"><button type="button" class="usb-guardian-control" data-guardian-device="sdb" data-guardian-name="Flash Backup" title="Safely eject Flash Backup" aria-label="Safely eject Flash Backup"><i class="fa fa-eject" aria-hidden="true"></i></button><span class="usb-guardian-control-status" role="status"></span></span></td>
+        <td>Fixture USB ELIGIBLE-001 (sdb)</td>
+        <td><button class="mount" type="button" device="/dev/sdb1" role="umount">Unmount</button></td>
+      </tr>
+      <tr class="toggle-disk" data-fixture-device="sdc">
+        <td>Busy Archive<span class="usb-guardian-control-wrap"><button type="button" class="usb-guardian-control" data-guardian-device="sdc" data-guardian-name="Busy Archive" title="Safely eject Busy Archive" aria-label="Safely eject Busy Archive"><i class="fa fa-eject" aria-hidden="true"></i></button><span class="usb-guardian-control-status" role="status"></span></span></td>
+        <td>Fixture USB BLOCKED-001 (sdc)</td>
+        <td><button class="mount" type="button" device="/dev/sdc1" role="umount">Unmount</button></td>
+      </tr>
+    </tbody>
+  </table>
+  <script>
+    (async () => {
+      const locale = new URLSearchParams(window.location.search).get('lang');
+      if (locale === 'zh_CN') document.documentElement.lang = 'zh-CN';
+      if (new URLSearchParams(location.search).has('dark')) { document.body.classList.add('dark'); document.body.style.background='#1b1c1e'; document.body.style.color='#eee'; }
+      const i18n = locale === 'zh_CN'
+        ? await window.fetch('/source/unassigned.devices/usr/local/emhttp/plugins/unassigned.devices/usb-guardian/language/zh_CN.json').then((response) => response.json())
+        : {};
+      const eligible = {
+        display_name: 'Flash Backup', devX: 'sdb', kernel_name: 'sdb', aliases: ['/dev/sdb1'],
+        target: 'opaque-eligible-token', eligible: true, reasons: [], diskseq: '101',
+        serial: 'ELIGIBLE-001', usb_serial: 'USB-ELIGIBLE-001',
+        usb_path: 'devices/pci0000:00/usb1/1-2', usb_vid: '0781', usb_pid: '5581',
+        vendor: 'Fixture', model: 'Flash'
+      };
+      const blocked = {
+        display_name: 'Busy Archive', devX: 'sdc', kernel_name: 'sdc', aliases: ['/dev/sdc1'],
+        target: 'opaque-blocked-token', eligible: false, diskseq: '102', serial: 'BLOCKED-001',
+        usb_serial: 'USB-BLOCKED-001', usb_path: 'devices/pci0000:00/usb1/1-3',
+        usb_vid: '1058', usb_pid: '25a2', vendor: 'Fixture', model: 'Archive',
+        reasons: [{
+          code: 'open_files', message: 'A process still has the device open.',
+          detail: 'PID 4242 is reading /mnt/disks/archive/report.dat.',
+          advice: 'Close the backup process, then check again.',
+          blockers: [{ pid: 4242, process: 'fixture-backup', kind: 'fd', path: '/mnt/disks/archive/report.dat' }]
+        }]
+      };
+      const jobId = '11111111-1111-4111-8111-111111111111';
+      const fixture = {
+        devices: [eligible, blocked], jobs: [], authority: null, generation: 0,
+        calls: { list: 0, eject: 0, status: 0, jobs: 0, lease: 0 }
+      };
+      window.__guardianFixture = fixture;
+      window.UsbGuardianRuntime = Object.freeze({ apiUrl: '/plugins/unassigned.devices/usb-guardian/api.php', csrfToken: 'fixture-csrf', i18n });
+
+      const counts = document.getElementById('fixture-counts');
+      const renderCounts = () => { counts.textContent = Object.entries(fixture.calls).map(([key, value]) => `${key}:${value}`).join(' '); };
+      renderCounts();
+      const response = (data, status = 200) => Promise.resolve(new Response(JSON.stringify(data), {
+        status, headers: { 'Content-Type': 'application/json' }
+      }));
+      window.fetch = (_url, options) => {
+        const fields = new URLSearchParams(options?.body || '');
+        const action = fields.get('action') || '';
+        if (Object.hasOwn(fixture.calls, action)) fixture.calls[action] += 1;
+        renderCounts();
+        if (action === 'list') {
+          return response({ ok: true, data: { devices: fixture.devices, meta: { boot_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' } } });
+        }
+        if (action === 'jobs') {
+          return response({ ok: true, data: {
+            boot_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', jobs: fixture.jobs, authority: fixture.authority,
+            generation: fixture.generation, is_latest_job: fixture.authority !== null
+          } });
+        }
+        if (action === 'lease') {
+          const generation = Number(fields.get('generation'));
+          const job = fixture.jobs.find((candidate) => candidate.job_id === fields.get('job_id'));
+          const sameDevicePresent = fixture.devices.some((device) => device.usb_path === eligible.usb_path
+            || (device.usb_vid === eligible.usb_vid
+              && device.usb_pid === eligible.usb_pid
+              && (!eligible.usb_serial || device.usb_serial === eligible.usb_serial)));
+          if (!fixture.authority
+            || fixture.authority.job_id !== fields.get('job_id')
+            || fixture.authority.generation !== generation
+            || !job
+            || job.state !== 'completed'
+            || job.safe_to_unplug !== true
+            || sameDevicePresent) {
+            return response({ ok: false, error: { message: 'The fixture lease is not authoritative or the USB device is present.' } }, 409);
+          }
+          return response({ ok: true, data: {
+            boot_id: fixture.authority.boot_id,
+            authority: fixture.authority,
+            generation: fixture.authority.generation,
+            is_latest_job: true,
+            job: { job_id: job.job_id, state: 'completed', terminal: true, safe_to_unplug: true },
+            device_absent: true,
+            identity: {
+              usb_path: eligible.usb_path, usb_vid: eligible.usb_vid,
+              usb_pid: eligible.usb_pid, usb_serial: eligible.usb_serial
+            }
+          } });
+        }
+        if (action === 'eject' && fields.get('target') === eligible.target) {
+          fixture.devices = fixture.devices.filter((device) => device.kernel_name !== 'sdb');
+          fixture.generation += 1;
+          fixture.authority = { schema_version: 1, boot_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', job_id: jobId, generation: fixture.generation };
+          return response({ ok: true, data: {
+            job_id: jobId, boot_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', authority: fixture.authority,
+            generation: fixture.generation, is_latest_job: true
+          } });
+        }
+        if (action === 'status') {
+          const completed = {
+            job_id: jobId, state: 'completed', phase: 'verified', terminal: true,
+            safe_to_unplug: true, boot_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', updated_at: new Date().toISOString(),
+            device_name: 'Flash Backup', device: eligible, authority: fixture.authority,
+            generation: fixture.generation, is_latest_job: true
+          };
+          fixture.jobs = [completed];
+          return response({ ok: true, data: completed });
+        }
+        return response({ ok: false, error: { message: 'Unexpected fixture request.' } }, 400);
+      };
+
+      const nativeControls = {"sdb": "<span class=\"usb-guardian-control-wrap\"><button type=\"button\" class=\"usb-guardian-control\" data-guardian-device=\"sdb\" data-guardian-name=\"Flash Backup\" title=\"Safely eject Flash Backup\" aria-label=\"Safely eject Flash Backup\"><i class=\"fa fa-eject\" aria-hidden=\"true\"></i></button><span class=\"usb-guardian-control-status\" role=\"status\"></span></span>", "sdc": "<span class=\"usb-guardian-control-wrap\"><button type=\"button\" class=\"usb-guardian-control\" data-guardian-device=\"sdc\" data-guardian-name=\"Busy Archive\" title=\"Safely eject Busy Archive\" aria-label=\"Safely eject Busy Archive\"><i class=\"fa fa-eject\" aria-hidden=\"true\"></i></button><span class=\"usb-guardian-control-status\" role=\"status\"></span></span>"};
+      const diskRows = () => fixture.devices.map((device) => `
+        <tr class="toggle-disk" data-fixture-device="${device.kernel_name}">
+          <td>${device.display_name}${nativeControls[device.kernel_name]}</td>
+          <td>${device.vendor} ${device.model} ${device.serial} (${device.kernel_name})</td>
+          <td><button class="mount" type="button" device="/dev/${device.kernel_name}1" role="umount">Unmount</button></td>
+        </tr>`).join('');
+      window.updatePageContent = (data) => {
+        document.getElementById('disk-table-body').innerHTML = data.disks;
+        window.UDSafeEject?.refreshControls();
+      };
+      fixture.redrawBurst = async () => {
+        const metrics = [];
+        for (let index = 0; index < 20; index += 1) {
+          window.updatePageContent({ disks: diskRows(), remotes: '', historical: '' });
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+          const cells = [...document.querySelectorAll('#disk-table-body tr.toggle-disk>td:first-child')];
+          metrics.push({
+            buttons: document.querySelectorAll('#disk-table-body .usb-guardian-control').length,
+            widths: cells.map((cell) => Math.round(cell.getBoundingClientRect().width * 100) / 100),
+          });
+        }
+        fixture.redrawMetrics = metrics;
+        return metrics;
+      };
+      document.getElementById('fixture-redraw-burst').addEventListener('click', fixture.redrawBurst);
+
+      document.getElementById('fixture-return').addEventListener('click', () => {
+        fixture.devices = [{ ...eligible, serial: 'RETURNED-002', usb_serial: 'USB-RETURNED-002', diskseq: '202' }, blocked];
+        const old = document.querySelector('[data-fixture-device="sdb"]');
+        const replacement = old.cloneNode(true);
+        replacement.cells[1].textContent = 'Fixture USB RETURNED-002 (sdb)';
+        old.replaceWith(replacement);
+      });
+
+      fixture.dispatchResumeBurst = () => {
+        for (let index = 0; index < 20; index += 1) {
+          window.dispatchEvent(new Event(index % 2 ? 'focus' : 'pageshow'));
+          document.dispatchEvent(new Event('visibilitychange'));
+        }
+      };
+      document.getElementById('fixture-resume-burst').addEventListener('click', fixture.dispatchResumeBurst);
+
+      fixture.revokeSafeInOtherTab = () => {
+        const key = 'usb.guardian.safe.v1';
+        const oldValue = localStorage.getItem(key);
+        localStorage.removeItem(key);
+        window.dispatchEvent(new StorageEvent('storage', {
+          key, oldValue, newValue: null, storageArea: localStorage, url: location.href
+        }));
+      };
+      document.getElementById('fixture-storage-revoke').addEventListener('click', fixture.revokeSafeInOtherTab);
+
+      fixture.resetCalls = () => {
+        Object.keys(fixture.calls).forEach((key) => { fixture.calls[key] = 0; });
+        renderCounts();
+      };
+      document.getElementById('fixture-reset-counts').addEventListener('click', fixture.resetCalls);
+
+      const guardianScript = document.createElement('script');
+      guardianScript.src = '/source/unassigned.devices/usr/local/emhttp/plugins/unassigned.devices/usb-guardian/assets/guardian.js';
+      document.body.append(guardianScript);
+    })();
+  </script>
+</body>
+</html>
