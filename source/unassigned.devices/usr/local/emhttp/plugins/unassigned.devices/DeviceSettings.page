@@ -16,6 +16,11 @@ Tag="unlink"
 /* Load the UD library file if it is not already loaded. */
 require_once("plugins/unassigned.devices/include/lib.php");
 
+/* Add only this feature's missing translations to the native language catalog. */
+if (($locale ?? '') === 'zh_CN') {
+	$language = array_merge(parse_lang_file(DOCROOT.'/plugins/'.UNASSIGNED_PLUGIN.'/language/zh_CN/safe_remove.txt'), $language);
+}
+
 $background				= "yes";
 $partition				= "";
 $disk_setting			= true;
@@ -347,11 +352,25 @@ EOT;
 :end
 
 <?if (($show_device_switches) && ($fstype != "zvol") && ($disk_device) && ($info) && (! $mounted) && (! $is_preclearing) && (! is_pass_through($ud_device)) && ($host) && ($connected)):?>
+<?if ($usb):
+$remove_device = '/dev/'.MiscUD::base_device(basename($device));
+$remove_sequence = trim(@file_get_contents('/sys/class/block/'.basename($remove_device).'/diskseq') ?: '');
+?>
+<button type="button" id="detach-button" onclick="safe_remove_usb(this)"
+ data-device="<?=htmlspecialchars($remove_device, ENT_QUOTES);?>"
+ data-serial="<?=htmlspecialchars($ud_device, ENT_QUOTES);?>"
+ data-sequence="<?=htmlspecialchars($remove_sequence, ENT_QUOTES);?>"><?=_('Safe Remove');?></button>
+<span id="safe-remove-status" role="status" aria-live="polite"></span>
+<p><?=_('Unmount the USB disk first, then use Safe Remove and wait for confirmation before unplugging it.');?></p>
+<?else:?>
 <button type="button" id="detach-button" title='_(Detach This Disk)_.' onclick='detach_disk("<?=$device;?>");'>_(Detach)_</button>
+<?endif;?>
 
+<?if (! $usb):?>
 :ud_edit_script_detach_plug:
 > Click **Detach** to detach the device.  The device will then show in Historical Devices and can be Attached from the device settings there.
 :end
+<?endif;?>
 <?endif;?>
 <?if ($disk_device && (! $info) && ($host) && (! $connected)):?>
 <button type="button" id="attach-button" title='_(Attach This Disk)_.' onclick='attach_disk("<?=$ud_device;?>");'>_(Attach)_</button>
@@ -1166,6 +1185,41 @@ _(User Script)_:
 			"#arg[1]": $("input[name='#file']").val()
 		}).done(function () {
 			location.reload();
+		});
+	}
+
+	/* Use the existing device-settings button and UD endpoint. */
+	function safe_remove_usb(button) {
+		const text = <?=json_encode(array_map('_', [
+			'confirm' => 'Safely remove this USB device?',
+			'working' => 'Removing USB device',
+			'done' => 'Device removed. You can unplug this USB device.',
+			'busy' => 'The device is busy or protected. Stop using it and try again.',
+			'protected' => 'The Unraid boot device cannot be removed.',
+			'changed' => 'The device has changed. Reload this page before trying again.',
+			'unsupported' => 'This device or storage configuration is not supported for safe removal.',
+			'mounted' => 'The device is still mounted. Unmount it before safe removal.',
+			'inspection' => 'Could not verify that the device is unused. Check the system log.',
+			'flush' => 'Could not flush the device buffers. Do not unplug it.',
+			'detach' => 'Device removal was not confirmed. Do not unplug it.',
+			'request' => 'The request failed. Reload this page and check the device status.'
+		]), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);?>;
+		if (! window.confirm(text.confirm)) return;
+		const status = $('#safe-remove-status');
+		$(button).prop('disabled', true);
+		status.text(text.working);
+		$.post(UDURL, {
+			action: 'safe_remove', device: button.dataset.device,
+			serial: button.dataset.serial, sequence: button.dataset.sequence,
+			csrf_token: <?=json_encode((string)($var['csrf_token'] ?? ''));?>
+		}, null, 'json').done(function (result) {
+			if (! result || typeof result.success !== 'boolean' || typeof result.reason !== 'string' ||
+				(result.success && result.reason !== '')) result = {success: false, reason: 'inspection'};
+			status.text(result.success === true ? text.done : (text[result.reason] || text.inspection));
+			if (result.success !== true) $(button).prop('disabled', false);
+		}).fail(function () {
+			status.text(text.request);
+			$(button).prop('disabled', false);
 		});
 	}
 

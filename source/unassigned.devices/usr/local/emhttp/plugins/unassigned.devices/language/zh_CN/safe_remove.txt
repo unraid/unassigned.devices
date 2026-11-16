@@ -1,0 +1,14 @@
+Safe Remove=安全移除
+Safely remove this USB device=是否安全移除此 USB 设备？
+Removing USB device=正在移除 USB 设备
+Device removed You can unplug this USB device=设备已移除，可以拔出此 USB 设备。
+The device is busy or protected Stop using it and try again=设备正被占用或受到保护。请停止使用后重试。
+The Unraid boot device cannot be removed=不能移除 Unraid 启动设备。
+The device has changed Reload this page before trying again=设备已发生变化。请刷新页面后重试。
+This device or storage configuration is not supported for safe removal=此设备或存储配置不支持安全移除。
+The device is still mounted Unmount it before safe removal=设备仍处于挂载状态。请先卸载，再安全移除。
+Could not verify that the device is unused Check the system log=无法确认设备未被占用，请检查系统日志。
+Could not flush the device buffers Do not unplug it=无法刷新设备缓存，请勿拔出设备。
+Device removal was not confirmed Do not unplug it=尚未确认设备已移除，请勿拔出设备。
+The request failed Reload this page and check the device status=请求失败。请刷新页面并检查设备状态。
+Unmount the USB disk first, then use Safe Remove and wait for confirmation before unplugging it=请先卸载 USB 磁盘，再点击“安全移除”，并等待成功确认后拔出设备。
